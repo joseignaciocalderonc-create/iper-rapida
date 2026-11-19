@@ -97,7 +97,7 @@
   .muted{color:var(--muted);font-size:13px}
   .hidden{display:none!important}
   .lbl{display:flex;align-items:center;justify-content:space-between}
-  .mic{border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 10px;font:inherit;font-size:12px;font-weight:700;color:var(--ink);text-transform:none;letter-spacing:0}
+  .mic{white-space:nowrap;border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 10px;font:inherit;font-size:12px;font-weight:700;color:var(--ink);text-transform:none;letter-spacing:0}
   .mic.rec{background:var(--int);color:#fff;border-color:var(--int);animation:pulse 1s infinite}
   @keyframes pulse{50%{opacity:.6}}
   .confirm{background:#fff4e5;border:1px solid #f3c58a;border-radius:10px;padding:10px;margin:8px 0;font-size:13.5px}
@@ -276,7 +276,8 @@ function renderNueva(){
       '<datalist id="dlProc">'+L.procesos.map(function(p){return '<option value="'+esc(p)+'">';}).join('')+'</datalist>'+
       '<label>Puesto de trabajo</label><input type="text" list="dlPue" data-f="puesto" value="'+esc(t.puesto)+'" placeholder="Ej: Guardia de seguridad">'+
       '<datalist id="dlPue">'+L.puestos.map(function(p){return '<option value="'+esc(p)+'">';}).join('')+'</datalist>'+
-      '<label class="lbl"><span>Descripción breve de la tarea</span>'+micBtn('tarea')+'</label><textarea data-f="tarea" placeholder="Ej: Controlar el acceso de vehículos, levantar la barrera y revisar documentos">'+esc(t.tarea)+'</textarea>'+
+      '<label class="lbl"><span>Descripción de la tarea</span><span style="display:flex;gap:6px">'+micBtn('tarea')+'<button class="mic" id="btnMejorar">✨ Mejorar</button></span></label><textarea data-f="tarea" placeholder="Escríbela o díctala como te salga. Ej: control de autos en la portería, subo la barrera y pido papeles">'+esc(t.tarea)+'</textarea>'+
+      '<div class="muted" style="margin-top:4px">Puedes escribirla breve o dictarla y luego tocar <b>✨ Mejorar redacción</b>.</div>'+
       '<label>Lugar específico (opcional)</label><input type="text" data-f="lugar" value="'+esc(t.lugar)+'" placeholder="Ej: Portería central">'+
       '<label>Tipo de tarea</label><div class="toggle"><button data-rut="1" class="'+(t.rutinaria?'on':'')+'">Rutinaria</button><button data-rut="0" class="'+(!t.rutinaria?'on':'')+'">No rutinaria</button></div>'+
     '</div>'+
@@ -558,6 +559,39 @@ function procesarFoto(file, max){
 }
 
 /* ======================= Acciones ======================= */
+/* ======================= Mejorar redacción ======================= */
+function mejorarRedaccion(respuestas){
+  if (!cur.tarea.trim()) return toast('Escribe o dicta primero una descripción, aunque sea breve.');
+  if (modo()!=='demo' && SRV.version && SRV.version<3) return toast('Actualiza Code.gs en el servidor para usar esta función.', 6000);
+  busy(true,'Mejorando la redacción…', respuestas.length?'Incluyendo tus respuestas':'');
+  run('mejorarRedaccion', {proceso:cur.proceso, puesto:cur.puesto, tarea:cur.tarea, lugar:cur.lugar, respuestas:respuestas})
+  .then(function(r){ busy(false); mostrarRedaccion(r, respuestas); })
+  .catch(function(e){ busy(false); toast(e.message, 6000); });
+}
+function mostrarRedaccion(r, previas){
+  var h = cabecera('Redacción sugerida')+
+    '<label>Tu texto</label><div class="muted" style="background:#f6f4ef;border-radius:10px;padding:10px">'+esc(cur.tarea)+'</div>'+
+    '<label>Propuesta (puedes editarla)</label><textarea id="redTxt" style="min-height:130px">'+esc(r.tarea)+'</textarea>';
+  if (r.preguntas.length){
+    h += '<div class="note" style="margin-top:12px"><b>Para que quede más completa, responde lo que sepas</b> (puedes dejar en blanco):</div>'+
+      r.preguntas.map(function(q,i){ return '<label style="text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink)">'+esc(q)+'</label>'+
+        '<input type="text" class="redResp" data-q="'+esc(q)+'" placeholder="Tu respuesta">'; }).join('')+
+      '<div style="height:10px"></div><button class="btn sec" id="redOtra">✨ Volver a redactar con mis respuestas</button>';
+  }
+  h += '<div style="height:10px"></div><button class="btn" id="redUsar">Usar esta redacción</button>'+
+    '<div style="height:8px"></div><button class="btn ghost" style="width:100%" onclick="cerrarSheet()">Mantener mi texto</button>';
+  abrirSheet(h);
+  $('redUsar').onclick = function(){
+    cur.tarea = $('redTxt').value.trim() || cur.tarea; guardarBorrador(); cerrarSheet(); render(true); toast('Descripción actualizada.');
+  };
+  if ($('redOtra')) $('redOtra').onclick = function(){
+    var nuevas = Array.from(document.querySelectorAll('.redResp')).filter(function(x){return x.value.trim();})
+      .map(function(x){ return {pregunta:x.dataset.q, respuesta:x.value.trim()}; });
+    if (!nuevas.length) return toast('Responde al menos una pregunta.');
+    cerrarSheet(); mejorarRedaccion((previas||[]).concat(nuevas));
+  };
+}
+
 function validarPaso1(){
   var t = cur;
   if (!t.proceso.trim() || !t.puesto.trim() || !t.tarea.trim()){ toast('Completa proceso, puesto y descripción de la tarea.'); return false; }
@@ -713,6 +747,7 @@ document.addEventListener('click', function(e){
   else if (d.fmed){ filtroMed = d.fmed; render(true); }
   else if (d.mest){ actualizarMedida(d.id, d.mest); }
   else if (d.verif){ var inp=$('fotoEvid'); inp.dataset.id=d.verif; inp.click(); }
+  else if (b.id==='btnMejorar'){ e.preventDefault(); mejorarRedaccion([]); }
   else if (b.id==='btnAnalizar') analizar();
   else if (b.id==='btnAddRisk') abrirAgregarRiesgo();
   else if (b.id==='btnGuardar') guardarTarea();
@@ -802,6 +837,11 @@ var Demo = (function(){
         Verificada:ms.filter(function(m){return m.estado==='Verificada';}).length,vencidas:ms.filter(function(m){return m.vencida;}).length},reevaluar:ts.filter(function(t){return t.reevaluar;}).length,revisiones:0,protocolos:prot}; },
     generarYEnviar: function(m){ if(!DB.tareas.filter(centro(m.centro)).length) throw new Error('No hay tareas guardadas para este centro.');
       return {email:m.email,url:'#',nombre:'Matriz IPER - '+m.centro+' (demo)',total:DB.tareas.filter(centro(m.centro)).reduce(function(a,t){return a+t.d.riesgos.length;},0)}; },
+    mejorarRedaccion: function(d){
+      if (d.respuestas && d.respuestas.length) return {tarea:'El guardia de seguridad controla el ingreso de vehículos en la portería: levanta manualmente la barrera, se desplaza hasta el vehículo y solicita la documentación de ingreso a la planta. '+d.respuestas.map(function(r){return r.respuesta;}).join('. ')+'.', preguntas:[]};
+      return {tarea:'El guardia de seguridad controla el ingreso de vehículos en la portería: levanta manualmente la barrera, se desplaza hasta el vehículo y solicita la documentación de ingreso a la planta.',
+        preguntas:['¿Cuántos vehículos pasan aproximadamente por turno?','¿La tarea se realiza al aire libre o bajo techo?','¿Cuánto pesa o cuánta fuerza requiere la barrera?']};
+    },
     activarAvisos: function(){ return {ok:true, mensaje:'(Demo) En la versión real se activan los avisos diarios.'}; }
   };
 })();
