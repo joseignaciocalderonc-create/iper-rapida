@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#16202b">
+<title>IPER Rápida</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+  :root{
+    --bg:#f3f1ec; --card:#ffffff; --ink:#16202b; --muted:#66707c; --line:#e2ded6;
+    --brand:#16202b; --accent:#e8590c; --accent-ink:#ffffff;
+    --tol:#3f9b4a; --mod:#d9a400; --imp:#e8740c; --int:#d0342c;
+    --tol-bg:#e5f3e3; --mod-bg:#fdf4cf; --imp-bg:#fde6d2; --int-bg:#fadbd8;
+    --r:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:20;background:var(--brand);color:#fff;padding:12px 16px 0}
+  .top{display:flex;align-items:center;justify-content:space-between}
+  .logo{font-weight:800;letter-spacing:.3px;font-size:18px;display:flex;align-items:center;gap:8px}
+  .logo i{display:inline-block;width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--accent) 50%,#ffd43b 50%)}
+  .demo{font-size:11px;background:#ffd43b;color:#16202b;border-radius:99px;padding:2px 8px;font-weight:700}
+  nav{display:flex;gap:4px;margin-top:10px}
+  nav button{flex:1;background:none;border:0;color:#aeb8c4;font:inherit;font-weight:600;padding:10px 4px;border-bottom:3px solid transparent}
+  nav button.on{color:#fff;border-color:var(--accent)}
+  nav .cnt{background:var(--accent);color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;margin-left:4px}
+  main{padding:14px 14px 110px;max-width:680px;margin:0 auto}
+  h2{font-size:19px;margin:6px 0 4px} h3{font-size:15px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
+  label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.3px}
+  input[type=text],input[type=email],input[type=number],textarea,select{width:100%;font:inherit;color:var(--ink);background:#fbfaf7;border:1px solid var(--line);border-radius:10px;padding:11px 12px;outline:none}
+  input:focus,textarea:focus,select:focus{border-color:var(--accent);background:#fff}
+  textarea{min-height:84px;resize:vertical}
+  .row{display:flex;gap:10px} .row>*{flex:1}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:0;border-radius:12px;padding:14px;font:inherit;font-weight:700;background:var(--accent);color:var(--accent-ink)}
+  .btn.sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn.ghost{background:none;color:var(--accent);padding:10px;width:auto}
+  .btn:disabled{opacity:.5}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:rgba(243,241,236,.96);backdrop-filter:blur(6px);border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));z-index:15}
+  .bar .in{max-width:680px;margin:0 auto;display:flex;gap:10px}
+  .steps{display:flex;gap:6px;margin:4px 0 14px}
+  .steps span{flex:1;height:5px;border-radius:9px;background:var(--line)} .steps span.on{background:var(--accent)}
+  .toggle{display:flex;background:#fbfaf7;border:1px solid var(--line);border-radius:10px;padding:3px}
+  .toggle button{flex:1;border:0;background:none;padding:9px;border-radius:8px;font:inherit;font-weight:600;color:var(--muted)}
+  .toggle button.on{background:var(--brand);color:#fff}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:99px;padding:7px 12px;font:inherit;font-size:13px}
+  .chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .ph{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:#ddd}
+  .ph img{width:100%;height:100%;object-fit:cover}
+  .ph b{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border-radius:99px;width:22px;height:22px;display:grid;place-items:center;font-size:13px}
+  .addph{aspect-ratio:1;border:2px dashed #c9c3b8;border-radius:10px;display:grid;place-items:center;color:var(--muted);font-size:12px;text-align:center;background:#fbfaf7}
+  .risk{border-left:5px solid var(--line)}
+  .risk .hd{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+  .code{font-weight:800;font-size:13px;background:var(--brand);color:#fff;border-radius:6px;padding:2px 7px;white-space:nowrap}
+  .fam{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;font-weight:700}
+  .rname{font-weight:700;margin:2px 0}
+  .just{font-size:12.5px;color:var(--muted);margin-top:6px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;background:#eef1f5;color:#3c4a5a;margin-right:4px}
+  .pc{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-top:8px}
+  .pc label{margin-top:0}
+  .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{flex:1;border:0;background:#fbfaf7;padding:9px 0;font:inherit;font-weight:700;color:var(--muted)}
+  .seg button+button{border-left:1px solid var(--line)}
+  .seg button.on{background:var(--brand);color:#fff}
+  .vep{min-width:76px;text-align:center;border-radius:10px;padding:5px 6px;font-weight:800;line-height:1.1}
+  .vep small{display:block;font-size:10.5px;font-weight:700}
+  .Tolerable{background:var(--tol-bg);color:var(--tol)} .Moderado{background:var(--mod-bg);color:#8a6a00}
+  .Importante{background:var(--imp-bg);color:#a84c00} .Intolerable{background:var(--int-bg);color:var(--int)}
+  .bl-Tolerable{border-left-color:var(--tol)} .bl-Moderado{border-left-color:var(--mod)} .bl-Importante{border-left-color:var(--imp)} .bl-Intolerable{border-left-color:var(--int)}
+  .x{border:0;background:none;color:var(--muted);font-size:20px;line-height:1;padding:0 4px}
+  .ctrl{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .ctrl ul{margin:4px 0 0;padding-left:18px;font-size:13.5px}
+  .note{background:#fff8e6;border:1px solid #f1dfa9;border-radius:12px;padding:10px 12px;font-size:13px;color:#6b5400}
+  .empty{text-align:center;color:var(--muted);padding:34px 10px}
+  .sum{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .overlay{position:fixed;inset:0;background:rgba(22,32,43,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .overlay.on{display:flex}
+  .box{background:#fff;border-radius:16px;padding:22px;max-width:340px;width:100%;text-align:center}
+  .spin{width:38px;height:38px;border:4px solid #eee;border-top-color:var(--accent);border-radius:50%;margin:0 auto 12px;animation:s 1s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .sheet{position:fixed;inset:0;background:rgba(22,32,43,.55);z-index:40;display:none;align-items:flex-end}
+  .sheet.on{display:flex}
+  .sheet .pane{background:#fff;width:100%;max-height:85vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px 30px}
+  .crit{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px}
+  .crit td,.crit th{border:1px solid var(--line);padding:7px;vertical-align:top;text-align:left}
+  .crit th{background:var(--brand);color:#fff}
+  .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 16px;border-radius:12px;font-size:14px;z-index:60;max-width:90%;display:none}
+  .toast.on{display:block}
+  .muted{color:var(--muted);font-size:13px}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div class="logo"><i></i>IPER Rápida <span id="demoTag" class="demo hidden">DEMO</span></div>
+    <button class="btn ghost" style="color:#ffd43b" onclick="abrirCriterios()">Criterios</button>
+  </div>
+  <nav>
+    <button data-tab="nueva" class="on">Nueva tarea</button>
+    <button data-tab="matriz">Matriz <span id="cnt" class="cnt">0</span></button>
+    <button data-tab="ajustes">Ajustes</button>
+  </nav>
+</header>
+
+<main id="app"></main>
+<div class="bar" id="bar"><div class="in" id="barIn"></div></div>
+
+<div class="overlay" id="busy"><div class="box"><div class="spin"></div><b id="busyTxt">Analizando…</b><div class="muted" id="busySub" style="margin-top:6px"></div></div></div>
+<div class="sheet" id="sheet" onclick="if(event.target===this)cerrarSheet()"><div class="pane" id="sheetPane"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== Estado ===================== */
+var FAM = {SEG:'Seguridad y emergencias', HIG:'Higiénicos', PSI:'Psicosociales', MUS:'Músculo esqueléticos'};
+var JER = ['Eliminación','Sustitución','Control de ingeniería','Control administrativo','EPP'];
+var SENS = [['fisica','Discapacidad física'],['cognitiva','Discapacidad cognitiva'],['sensorial','Discapacidad sensorial'],
+            ['embarazada','Trabajadora embarazada'],['lactancia','Trabajadora en lactancia'],['mayores','Adultos mayores'],['adolescentes','Adolescentes']];
+var MEDIDAS_RAPIDAS = ['Charla de inducción / ODI','Capacitación','Procedimiento de trabajo seguro','Entrega de EPP','Señalización',
+  'Orden y aseo','Mantención de equipos','Pausas activas','Protector solar','Extintores','Supervisión','Protocolo MINSAL aplicado'];
+var CAT = [], CATMAP = {};
+var cfg = Object.assign({empresa:'', centro:'', respEjec:'', respSeg:'', email:'', apiUrl:'', token:''}, load('iper_cfg', {}));
+var tareas = load('iper_tareas', []);
+var tab = 'nueva', paso = 1, cur = nuevaTarea();
+var EN_APPS_SCRIPT = !!(window.google && google.script && google.script.run);
+function modo(){ return EN_APPS_SCRIPT ? 'gas' : (cfg.apiUrl && cfg.token ? 'api' : 'demo'); }
+
+function nuevaTarea(){ return {proceso:'',puesto:'',tarea:'',lugar:'',rutinaria:true,hombres:'',mujeres:'',otros:'',
+  sensibles:{}, fotos:[], riesgos:[], observacionesFoto:'', medidasTexto:'', medidasActuales:[], clasificado:false}; }
+
+function load(k,d){ try{ var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
+function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+
+/* ===================== Servidor ===================== */
+function run(fn){
+  var args = Array.prototype.slice.call(arguments,1);
+  var m = modo();
+  if (m==='demo') return Demo[fn].apply(null,args);
+  if (m==='api'){
+    if (!navigator.onLine) return Promise.reject(new Error('Sin conexión a internet.'));
+    return fetch(cfg.apiUrl.trim(), {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({fn:fn, args:args, token:cfg.token.trim()}), redirect:'follow'})
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var j; try{ j = JSON.parse(t); }catch(e){ throw new Error('El servidor no respondió bien. Revisa la URL y que la implementación tenga acceso "Cualquier persona".'); }
+      if (!j.ok) throw new Error(j.error); return j.data;
+    }, function(e){ throw (e instanceof Error && /servidor|Sin conexi/.test(e.message)) ? e : new Error('No se pudo conectar con el servidor. Revisa la URL en Ajustes.'); });
+  }
+  return new Promise(function(ok,ko){
+    google.script.run.withSuccessHandler(ok).withFailureHandler(function(e){ ko(e && e.message ? e : new Error(String(e))); })[fn].apply(null,args);
+  });
+}
+
+/* ===================== Utilidades ===================== */
+function nivel(v){ return v<=2?'Tolerable':v<=4?'Moderado':v<=8?'Importante':'Intolerable'; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function $(id){ return document.getElementById(id); }
+function toast(t){ var el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(function(){el.classList.remove('on');},3800); }
+function busy(on,t,s){ $('busy').classList.toggle('on',!!on); if(t)$('busyTxt').textContent=t; $('busySub').textContent=s||''; }
+function seg(name, val, idx){
+  return '<div class="seg">'+[1,2,4].map(function(n){
+    return '<button data-seg="'+name+'" data-i="'+idx+'" data-v="'+n+'" class="'+(val==n?'on':'')+'">'+n+'</button>'; }).join('')+'</div>';
+}
+function vepBox(p,c){ var v=p*c, n=nivel(v); return '<div class="vep '+n+'">'+v+'<small>'+n+'</small></div>'; }
+
+/* ===================== Render ===================== */
+function render(){
+  document.querySelectorAll('nav button').forEach(function(b){ b.classList.toggle('on', b.dataset.tab===tab); });
+  $('cnt').textContent = tareas.length;
+  var html = '', bar = '';
+  if (tab==='nueva'){ var r = renderNueva(); html=r[0]; bar=r[1]; }
+  else if (tab==='matriz'){ var m = renderMatriz(); html=m[0]; bar=m[1]; }
+  else html = renderAjustes();
+  $('app').innerHTML = html;
+  $('barIn').innerHTML = bar; $('bar').classList.toggle('hidden', !bar);
+  window.scrollTo(0,0);
+}
+
+function stepper(){ return '<div class="steps">'+[1,2,3,4].map(function(i){return '<span class="'+(i<=paso?'on':'')+'"></span>';}).join('')+'</div>'; }
+
+function renderNueva(){
+  var t = cur, h = stepper(), bar='';
+  if (paso===1){
+    var procesos = Array.from(new Set(tareas.map(function(x){return x.proceso;}))).filter(Boolean);
+    var puestos = Array.from(new Set(tareas.map(function(x){return x.puesto;}))).filter(Boolean);
+    h += '<h2>1. Datos de la tarea</h2><p class="sub">Completa lo básico. La IA hará la identificación de peligros y riesgos.</p>'+
+    '<div class="card">'+
+      '<label>Proceso</label><input type="text" list="dlProc" data-f="proceso" value="'+esc(t.proceso)+'" placeholder="Ej: Control de portería">'+
+      '<datalist id="dlProc">'+procesos.map(function(p){return '<option value="'+esc(p)+'">';}).join('')+'</datalist>'+
+      '<label>Puesto de trabajo</label><input type="text" list="dlPue" data-f="puesto" value="'+esc(t.puesto)+'" placeholder="Ej: Guardia de seguridad">'+
+      '<datalist id="dlPue">'+puestos.map(function(p){return '<option value="'+esc(p)+'">';}).join('')+'</datalist>'+
+      '<label>Descripción breve de la tarea</label><textarea data-f="tarea" placeholder="Ej: Controlar el acceso de personas y vehículos en la portería, revisando guías de despacho">'+esc(t.tarea)+'</textarea>'+
+      '<label>Lugar específico (opcional)</label><input type="text" data-f="lugar" value="'+esc(t.lugar)+'" placeholder="Ej: Portería central">'+
+      '<label>Tipo de tarea</label><div class="toggle"><button data-rut="1" class="'+(t.rutinaria?'on':'')+'">Rutinaria</button><button data-rut="0" class="'+(!t.rutinaria?'on':'')+'">No rutinaria</button></div>'+
+    '</div>'+
+    '<div class="card"><h3>Personas que realizan la tarea</h3><div class="row">'+
+      '<div><label>Hombres</label><input type="number" min="0" inputmode="numeric" data-f="hombres" value="'+esc(t.hombres)+'"></div>'+
+      '<div><label>Mujeres</label><input type="number" min="0" inputmode="numeric" data-f="mujeres" value="'+esc(t.mujeres)+'"></div>'+
+      '<div><label>Otras</label><input type="number" min="0" inputmode="numeric" data-f="otros" value="'+esc(t.otros)+'"></div></div>'+
+      '<label>Personas especialmente sensibles (si hay)</label><div class="chips">'+
+      SENS.map(function(s){return '<button class="chip '+(t.sensibles[s[0]]?'on':'')+'" data-sens="'+s[0]+'">'+s[1]+'</button>';}).join('')+'</div>'+
+    '</div>'+
+    '<div class="card"><h3>Fotografías del puesto (opcional)</h3><p class="muted" style="margin:0 0 10px">La IA las revisa para detectar condiciones y acciones inseguras. Máximo 4.</p>'+
+      '<div class="photos">'+t.fotos.map(function(f,i){return '<div class="ph"><img src="'+f.thumb+'"><b data-delph="'+i+'">×</b></div>';}).join('')+
+      (t.fotos.length<4?'<label class="addph" style="margin:0;text-transform:none;letter-spacing:0">📷<br>Agregar<input id="foto" type="file" accept="image/*" multiple class="hidden"></label>':'')+'</div>'+
+    '</div>';
+    bar = '<button class="btn" id="btnAnalizar">Analizar con IA</button>';
+  }
+  else if (paso===2){
+    h += '<h2>2. Peligros y riesgos</h2><p class="sub">Revisa lo que propuso la IA. Ajusta la probabilidad (P) y la consecuencia (C) si hace falta.</p>';
+    if (t.observacionesFoto) h += '<div class="note" style="margin-bottom:12px"><b>📷 Observado en las fotos:</b> '+esc(t.observacionesFoto)+'</div>';
+    h += t.riesgos.map(function(r,i){ return riskCard(r,i,false); }).join('') || '<div class="empty">No hay riesgos. Agrega uno manualmente.</div>';
+    h += '<button class="btn sec" id="btnAddRisk">+ Agregar riesgo manualmente</button>';
+    bar = '<button class="btn sec" style="flex:.45" data-go="1">Atrás</button><button class="btn" data-go="3"'+(t.riesgos.length?'':' disabled')+'>Continuar</button>';
+  }
+  else if (paso===3){
+    h += '<h2>3. Medidas preventivas actuales</h2><p class="sub">¿Qué medidas tienen hoy para esta tarea? Escríbelas como salgan; la IA las clasificará según la jerarquía de control.</p>'+
+    '<div class="card"><label>Medidas actuales</label><textarea id="medTxt" data-f="medidasTexto" style="min-height:130px" placeholder="Ej: Se entrega ODI y EPP (zapatos de seguridad, chaleco reflectante). Hay señalización en la portería. Se aplica protocolo UV con bloqueador.">'+esc(t.medidasTexto)+'</textarea>'+
+    '<label>Agregar rápido</label><div class="chips">'+MEDIDAS_RAPIDAS.map(function(m){return '<button class="chip" data-med="'+esc(m)+'">+ '+m+'</button>';}).join('')+'</div></div>'+
+    '<div class="note">Jerarquía de control: <b>Eliminación → Sustitución → Ingeniería → Administrativa → EPP</b>. La IA también propondrá medidas adicionales siguiendo esta prelación.</div>';
+    bar = '<button class="btn sec" style="flex:.45" data-go="2">Atrás</button><button class="btn" id="btnClasificar">Clasificar con IA</button>';
+  }
+  else if (paso===4){
+    h += '<h2>4. Control y riesgo residual</h2><p class="sub">Revisa las medidas propuestas y el riesgo residual. Todo es editable.</p>';
+    if (t.medidasActuales.length){
+      h += '<div class="card"><h3>Medidas actuales clasificadas</h3>'+t.medidasActuales.map(function(m){
+        return '<div style="margin:6px 0"><span class="tag">'+esc(m.jerarquia)+'</span>'+esc(m.texto)+'</div>'; }).join('')+'</div>';
+    }
+    h += t.riesgos.map(function(r,i){ return riskCard(r,i,true); }).join('');
+    bar = '<button class="btn sec" style="flex:.45" data-go="3">Atrás</button><button class="btn" id="btnGuardar">Agregar a la matriz</button>';
+  }
+  return [h,bar];
+}
+
+function riskCard(r,i,control){
+  var v = r.p*r.c, n = nivel(v);
+  var h = '<div class="card risk bl-'+n+'">'+
+    '<div class="hd"><div style="flex:1"><div class="fam">'+FAM[r.fam]+(r.origen==='foto'?' · 📷 foto':'')+'</div>'+
+    '<div class="rname"><span class="code">'+esc(r.codigo)+'</span> '+esc(r.riesgo)+'</div></div>'+
+    (control?'':'<button class="x" data-del="'+i+'" aria-label="Eliminar">×</button>')+'</div>'+
+    '<label>Peligro</label><input type="text" data-rf="peligro" data-i="'+i+'" value="'+esc(r.peligro)+'">'+
+    '<div class="pc"><div><label>P '+(control?'inicial':'')+'</label>'+seg('p',r.p,i)+'</div><div><label>C</label>'+seg('c',r.c,i)+'</div>'+vepBox(r.p,r.c)+'</div>'+
+    (r.justificacion&&!control?'<div class="just">'+esc(r.justificacion)+'</div>':'');
+  if (control){
+    h += '<div class="ctrl">'+
+      '<label style="margin-top:0">Medidas actuales que aplican</label>'+
+      (r.medidasActuales&&r.medidasActuales.length?'<ul>'+r.medidasActuales.map(function(m){return '<li>'+esc(m)+'</li>';}).join('')+'</ul>':'<div class="muted">Ninguna declarada</div>')+
+      '<label>Medida propuesta</label><textarea data-rf="medidaPropuesta" data-i="'+i+'" style="min-height:60px">'+esc(r.medidaPropuesta)+'</textarea>'+
+      '<div><div><label>Jerarquía</label><select data-rf="jerarquia" data-i="'+i+'">'+JER.map(function(j){return '<option'+(j===r.jerarquia?' selected':'')+'>'+j+'</option>';}).join('')+'</select></div>'+
+      '<div><label>Requisito legal</label><input type="text" data-rf="requisitoLegal" data-i="'+i+'" value="'+esc(r.requisitoLegal)+'"></div></div>'+
+      '<div class="pc"><div><label>P residual</label>'+seg('pRes',r.pRes,i)+'</div><div><label>C residual</label>'+seg('cRes',r.cRes,i)+'</div>'+vepBox(r.pRes,r.cRes)+'</div>'+
+      (r.medidaEspecial?'<label>Medida especial (personas sensibles)</label><textarea data-rf="medidaEspecial" data-i="'+i+'" style="min-height:50px">'+esc(r.medidaEspecial)+'</textarea>':'')+
+    '</div>';
+  }
+  return h+'</div>';
+}
+
+function renderMatriz(){
+  var h = '<h2>Matriz IPER</h2><p class="sub">'+(cfg.centro?esc(cfg.centro)+' · ':'')+tareas.length+' tarea(s) evaluada(s).</p>';
+  if (!tareas.length) return [h+'<div class="empty">Aún no hay tareas.<br>Evalúa una tarea en <b>Nueva tarea</b>.</div>',''];
+  h += tareas.map(function(t,i){
+    var cont = {}; t.riesgos.forEach(function(r){ var n=nivel(r.p*r.c); cont[n]=(cont[n]||0)+1; });
+    var max = t.riesgos.reduce(function(a,r){return Math.max(a,r.p*r.c);},0);
+    return '<div class="card risk bl-'+nivel(max)+'"><div class="hd"><div><div class="fam">'+esc(t.proceso)+' · '+esc(t.puesto)+'</div>'+
+      '<div class="rname">'+esc(t.tarea)+'</div></div><button class="x" data-deltask="'+i+'">×</button></div>'+
+      '<div class="sum">'+['Intolerable','Importante','Moderado','Tolerable'].filter(function(n){return cont[n];}).map(function(n){
+        return '<span class="vep '+n+'" style="min-width:0;padding:4px 9px;font-size:12px">'+cont[n]+' '+n+'</span>';}).join('')+
+      '<span class="tag" style="align-self:center">'+t.riesgos.length+' riesgos</span></div></div>';
+  }).join('');
+  h += '<div class="muted" style="text-align:center;margin:8px 0">Se enviará a: <b>'+esc(cfg.email||'(configura tu correo en Ajustes)')+'</b></div>'+
+       '<button class="btn ghost" style="width:100%;color:var(--int)" id="btnVaciar">Vaciar matriz</button>';
+  return [h,'<button class="btn" id="btnEnviar">Generar Excel y enviar por correo</button>'];
+}
+
+function renderAjustes(){
+  var con = EN_APPS_SCRIPT ? '' : '<div class="card"><h3>Conexión con el servidor</h3>'+
+    '<p class="muted" style="margin:0 0 4px">'+(modo()==='api'?'✅ Configurado.':'⚠️ Sin configurar: la app está en modo demostración (respuestas de ejemplo).')+'</p>'+
+    '<label>URL de la aplicación web (termina en /exec)</label><input type="text" data-c="apiUrl" value="'+esc(cfg.apiUrl)+'" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off">'+
+    '<label>Clave de acceso (APP_TOKEN)</label><input type="text" data-c="token" value="'+esc(cfg.token)+'" autocapitalize="off" autocorrect="off">'+
+    '<div style="height:12px"></div><button class="btn sec" id="btnProbar">Probar conexión</button></div>';
+  return '<h2>Ajustes</h2><p class="sub">Se guardan en este teléfono y se usan en el encabezado del Excel.</p>'+con+'<div class="card">'+
+    '<label>Empresa / entidad empleadora</label><input type="text" data-c="empresa" value="'+esc(cfg.empresa)+'">'+
+    '<label>Centro de trabajo</label><input type="text" data-c="centro" value="'+esc(cfg.centro)+'">'+
+    '<label>Responsable de ejecución</label><input type="text" data-c="respEjec" value="'+esc(cfg.respEjec)+'" placeholder="Nombre [Cargo]">'+
+    '<label>Responsable de seguimiento</label><input type="text" data-c="respSeg" value="'+esc(cfg.respSeg)+'" placeholder="Nombre [Cargo]">'+
+    '<label>Correo de destino</label><input type="email" data-c="email" value="'+esc(cfg.email)+'" placeholder="tucorreo@empresa.cl">'+
+    '</div><div class="note">Los plazos se calculan según el nivel de riesgo: Intolerable inmediato, Importante 30 días, Moderado 90 días, Tolerable 1 año (seguimiento +30 días). Puedes cambiarlos en el Excel.</div>'+
+    '<p class="muted" style="margin-top:14px">La matriz es un borrador asistido por IA. Debe ser revisada y validada por el/la encargado/a de prevención, con participación de las personas trabajadoras (DS 44).</p>';
+}
+
+/* ===================== Criterios ===================== */
+function abrirCriterios(){
+  $('sheetPane').innerHTML = '<div class="hd" style="display:flex;justify-content:space-between;align-items:center"><h2>Criterios de valoración</h2><button class="x" onclick="cerrarSheet()">×</button></div>'+
+  '<p class="muted">VEP (valor esperado de la pérdida) = Probabilidad × Consecuencia</p>'+
+  '<table class="crit"><tr><th>Probabilidad</th><th>Valor</th><th>Descripción</th></tr>'+
+  '<tr><td>Baja</td><td>1</td><td>El daño ocurrirá rara vez o en contadas ocasiones.</td></tr>'+
+  '<tr><td>Media</td><td>2</td><td>El daño ocurrirá en varias ocasiones (puede pasar).</td></tr>'+
+  '<tr><td>Alta</td><td>4</td><td>El daño ocurrirá siempre o casi siempre.</td></tr></table>'+
+  '<table class="crit"><tr><th>Consecuencia</th><th>Valor</th><th>Descripción</th></tr>'+
+  '<tr><td>Ligeramente dañino</td><td>1</td><td>Pequeñas lesiones o daños superficiales (cortes superficiales, magulladuras).</td></tr>'+
+  '<tr><td>Dañino</td><td>2</td><td>Lesiones con incapacidad temporal (laceraciones, quemaduras, torceduras, fracturas pequeñas).</td></tr>'+
+  '<tr><td>Extremadamente dañino</td><td>4</td><td>Amputaciones, fracturas mayores, intoxicaciones, incapacidad permanente o fatal.</td></tr></table>'+
+  '<table class="crit"><tr><th>VEP</th><th>Nivel</th><th>Acción</th></tr>'+
+  '<tr class="Tolerable"><td>≤ 2</td><td>Tolerable</td><td>Mantener medidas y comprobar periódicamente su eficacia.</td></tr>'+
+  '<tr class="Moderado"><td>4</td><td>Moderado</td><td>Reducir el riesgo; implementar medidas en un período determinado.</td></tr>'+
+  '<tr class="Importante"><td>8</td><td>Importante</td><td>No comenzar ni continuar hasta reducir el riesgo.</td></tr>'+
+  '<tr class="Intolerable"><td>16</td><td>Intolerable</td><td>No comenzar ni continuar. Si no se puede reducir, prohibir el trabajo.</td></tr></table>';
+  $('sheet').classList.add('on');
+}
+function cerrarSheet(){ $('sheet').classList.remove('on'); }
+
+function abrirAgregarRiesgo(){
+  var opts = Object.keys(FAM).map(function(f){
+    return '<optgroup label="'+FAM[f]+'">'+CAT.filter(function(x){return x.fam===f;}).map(function(x){
+      return '<option value="'+x.c+'">'+x.c+' – '+esc(x.r)+'</option>';}).join('')+'</optgroup>'; }).join('');
+  $('sheetPane').innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center"><h2>Agregar riesgo</h2><button class="x" onclick="cerrarSheet()">×</button></div>'+
+    '<label>Peligro</label><input type="text" id="nrPel" placeholder="Ej: Cables eléctricos expuestos">'+
+    '<label>Riesgo (código)</label><select id="nrCod">'+opts+'</select>'+
+    '<div style="height:14px"></div><button class="btn" id="nrOk">Agregar</button>';
+  $('sheet').classList.add('on');
+  $('nrOk').onclick = function(){
+    var c = CATMAP[$('nrCod').value], pel = $('nrPel').value.trim();
+    if (!pel) return toast('Escribe el peligro.');
+    cur.riesgos.push({peligro:pel, origen:'manual', codigo:c.c, riesgo:c.r, fam:c.fam, p:2, c:2, justificacion:'Agregado manualmente'});
+    cur.clasificado = false; cerrarSheet(); render();
+  };
+}
+
+/* ===================== Fotos ===================== */
+function procesarFoto(file){
+  return new Promise(function(ok,ko){
+    var rd = new FileReader();
+    rd.onload = function(){
+      var img = new Image();
+      img.onload = function(){
+        var max = 1280, w = img.width, h = img.height, k = Math.min(1, max/Math.max(w,h));
+        var cv = document.createElement('canvas'); cv.width = Math.round(w*k); cv.height = Math.round(h*k);
+        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+        var big = cv.toDataURL('image/jpeg',0.72);
+        var t = document.createElement('canvas'), tk = 200/Math.max(cv.width,cv.height);
+        t.width = Math.round(cv.width*tk); t.height = Math.round(cv.height*tk);
+        t.getContext('2d').drawImage(cv,0,0,t.width,t.height);
+        ok({mime:'image/jpeg', data:big.split(',')[1], thumb:t.toDataURL('image/jpeg',0.7)});
+      };
+      img.onerror = function(){ ko(new Error('No se pudo leer la imagen')); };
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+  });
+}
+
+/* ===================== Acciones ===================== */
+function analizar(){
+  var t = cur;
+  if (!t.proceso.trim() || !t.puesto.trim() || !t.tarea.trim()) return toast('Completa proceso, puesto y descripción de la tarea.');
+  if (!(+t.hombres||0) && !(+t.mujeres||0) && !(+t.otros||0)) return toast('Indica cuántas personas realizan la tarea.');
+  busy(true,'Identificando peligros…', t.fotos.length?'Analizando descripción y '+t.fotos.length+' foto(s)':'Analizando la descripción');
+  var payload = {proceso:t.proceso, puesto:t.puesto, tarea:t.tarea, lugar:t.lugar, rutinaria:t.rutinaria,
+    hombres:t.hombres, mujeres:t.mujeres, otros:t.otros, fotos:t.fotos.map(function(f){return {mime:f.mime,data:f.data};})};
+  run('analizarTarea', payload).then(function(res){
+    busy(false);
+    t.riesgos = res.riesgos; t.observacionesFoto = res.observacionesFoto; t.clasificado = false;
+    if (!t.riesgos.length) toast('La IA no identificó riesgos válidos. Agrega uno manualmente o detalla más la tarea.');
+    paso = 2; render();
+  }).catch(function(e){ busy(false); toast(e.message); });
+}
+
+function clasificar(){
+  var t = cur;
+  busy(true,'Clasificando medidas…','Jerarquía de control y riesgo residual');
+  var riesgos = t.riesgos.map(function(r){ return {peligro:r.peligro, codigo:r.codigo, riesgo:r.riesgo, p:r.p, c:r.c}; });
+  run('clasificarMedidas', {proceso:t.proceso, puesto:t.puesto, tarea:t.tarea, sensibles:t.sensibles}, riesgos, t.medidasTexto).then(function(res){
+    busy(false);
+    t.medidasActuales = res.medidasActuales;
+    res.riesgos.forEach(function(x,i){ Object.assign(t.riesgos[i], x); });
+    t.clasificado = true; paso = 4; render();
+  }).catch(function(e){ busy(false); toast(e.message); });
+}
+
+function guardarTarea(){
+  var t = JSON.parse(JSON.stringify(cur)); delete t.fotos;
+  tareas.push(t); save('iper_tareas', tareas);
+  cur = nuevaTarea(); paso = 1;
+  // conserva proceso y puesto para cargar la siguiente tarea más rápido
+  var u = tareas[tareas.length-1]; cur.proceso = u.proceso; cur.puesto = u.puesto;
+  cur.hombres = u.hombres; cur.mujeres = u.mujeres; cur.otros = u.otros; cur.sensibles = u.sensibles;
+  toast('Tarea agregada a la matriz ('+tareas.length+').');
+  render();
+}
+
+function enviar(){
+  if (!cfg.email) { tab='ajustes'; render(); return toast('Configura el correo de destino.'); }
+  busy(true,'Generando Excel…','Se enviará a '+cfg.email);
+  run('generarYEnviar', {empresa:cfg.empresa, centro:cfg.centro, respEjec:cfg.respEjec, respSeg:cfg.respSeg, email:cfg.email, tareas:tareas})
+  .then(function(r){
+    busy(false);
+    $('sheetPane').innerHTML = '<div style="text-align:center;padding:10px 4px"><div style="font-size:42px">✅</div><h2>Matriz enviada</h2>'+
+      '<p class="muted">Se envió <b>'+esc(r.nombre)+'.xlsx</b> a <b>'+esc(r.email)+'</b> con '+r.total+' riesgos.</p>'+
+      (r.url&&r.url!=='#'?'<p><a href="'+esc(r.url)+'" target="_blank">Abrir copia en Google Sheets</a></p>':'')+
+      '<button class="btn" onclick="cerrarSheet()">Listo</button></div>';
+    $('sheet').classList.add('on');
+  }).catch(function(e){ busy(false); toast(e.message); });
+}
+
+/* ===================== Eventos ===================== */
+document.querySelector('nav').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return; tab = b.dataset.tab; render();
+});
+document.addEventListener('input', function(e){
+  var el = e.target;
+  if (el.dataset.f) cur[el.dataset.f] = el.value;
+  if (el.dataset.c){ cfg[el.dataset.c] = el.value; save('iper_cfg', cfg); }
+  if (el.dataset.rf){ cur.riesgos[+el.dataset.i][el.dataset.rf] = el.value; }
+});
+document.addEventListener('change', function(e){
+  if (e.target.id==='foto'){
+    var files = Array.from(e.target.files).slice(0, 4-cur.fotos.length);
+    busy(true,'Procesando fotos…');
+    Promise.all(files.map(procesarFoto)).then(function(arr){ cur.fotos = cur.fotos.concat(arr); busy(false); render(); })
+      .catch(function(err){ busy(false); toast(err.message); });
+  }
+  if (e.target.dataset.rf){ cur.riesgos[+e.target.dataset.i][e.target.dataset.rf] = e.target.value; }
+});
+document.addEventListener('click', function(e){
+  var b = e.target.closest('button,[data-delph]'); if (!b) return;
+  var d = b.dataset;
+  if (d.rut!=null){ cur.rutinaria = d.rut==='1'; render(); }
+  else if (d.sens){ cur.sensibles[d.sens] = !cur.sensibles[d.sens]; b.classList.toggle('on'); }
+  else if (d.delph!=null){ cur.fotos.splice(+d.delph,1); render(); }
+  else if (d.seg){
+    var r = cur.riesgos[+d.i]; r[d.seg] = +d.v;
+    var card = b.closest('.card'); var y = card.getBoundingClientRect().top;
+    render(); var nc = document.querySelectorAll('.risk')[+d.i]; if (nc) window.scrollTo(0, nc.getBoundingClientRect().top + window.scrollY - y);
+  }
+  else if (d.del!=null){ cur.riesgos.splice(+d.del,1); render(); }
+  else if (d.go){ paso = +d.go; render(); }
+  else if (d.med){ var ta=$('medTxt'); cur.medidasTexto = (cur.medidasTexto.trim()? cur.medidasTexto.trim()+'. ':'')+d.med; ta.value=cur.medidasTexto; }
+  else if (d.deltask!=null){ if (confirmar('¿Eliminar esta tarea de la matriz?')){ tareas.splice(+d.deltask,1); save('iper_tareas',tareas); render(); } }
+  else if (b.id==='btnAnalizar') analizar();
+  else if (b.id==='btnAddRisk') abrirAgregarRiesgo();
+  else if (b.id==='btnClasificar') clasificar();
+  else if (b.id==='btnGuardar') guardarTarea();
+  else if (b.id==='btnEnviar') enviar();
+  else if (b.id==='btnProbar') probarConexion();
+  else if (b.id==='btnVaciar'){ if (confirmar('¿Vaciar toda la matriz?')){ tareas=[]; save('iper_tareas',tareas); render(); } }
+});
+var _conf = {};
+function confirmar(msg){ // confirmación en dos toques, sin diálogos del navegador
+  var now = Date.now();
+  if (_conf[msg] && now-_conf[msg] < 3500){ delete _conf[msg]; return true; }
+  _conf[msg] = now; toast(msg+' Toca de nuevo para confirmar.'); return false;
+}
+
+/* ===================== Inicio ===================== */
+function aplicarConfig(c){
+  CAT = c.catalogo; CATMAP = {}; CAT.forEach(function(x){ CATMAP[x.c]=x; });
+  if (modo()!=='demo') save('iper_cat', CAT);
+  if (modo()!=='demo' && !cfg.email && c.email){ cfg.email = c.email; save('iper_cfg', cfg); }
+}
+function probarConexion(){
+  if (modo()!=='api') return toast('Completa la URL y la clave de acceso.');
+  busy(true,'Probando conexión…');
+  run('getConfig').then(function(c){
+    busy(false); aplicarConfig(c); $('demoTag').classList.add('hidden');
+    toast(c.tieneClave ? '✅ Conectado. Ya puedes usar la IA.' : 'Conectado, pero falta GEMINI_API_KEY en el servidor.');
+    render();
+  }).catch(function(e){ busy(false); toast(e.message); });
+}
+function init(){
+  $('demoTag').classList.toggle('hidden', modo()!=='demo');
+  if ('serviceWorker' in navigator && !EN_APPS_SCRIPT && (location.protocol==='https:' || location.hostname==='localhost')){
+    try{ navigator.serviceWorker.register('sw.js').catch(function(){}); }catch(e){}
+  }
+  var guardado = load('iper_cat', null);
+  if (modo()==='api' && guardado){ aplicarConfig({catalogo:guardado}); render(); } // arranque rápido / sin conexión
+  run('getConfig').then(function(c){
+    aplicarConfig(c);
+    if (!c.tieneClave) toast('Falta configurar la clave de Gemini (GEMINI_API_KEY) en el servidor.');
+    render();
+  }).catch(function(e){
+    if (!CAT.length){ return Demo.getConfig().then(function(c){ aplicarConfig(c); toast(e.message); render(); }); }
+    toast(e.message); render();
+  });
+  if (modo()==='demo') setTimeout(function(){ toast('Modo demostración. Conecta tu servidor en Ajustes.'); }, 600);
+}
+
+/* ===================== Modo demo (fuera de Apps Script) ===================== */
+var Demo = {
+  getConfig: function(){ return Promise.resolve({email:'demo@correo.cl', catalogo: window.DEMO_CATALOGO || [
+    {c:'A1',r:'Caídas al mismo nivel',fam:'SEG'},{c:'A2',r:'Caídas a distinto nivel',fam:'SEG'},{c:'I1',r:'Atropellos o golpes con vehículos',fam:'SEG'},
+    {c:'C1',r:'Contacto con personas',fam:'SEG'},{c:'P4',r:'Exposición a Radiaciones No Ionizantes',fam:'HIG'},{c:'P5',r:'Exposición a Calor',fam:'HIG'},
+    {c:'T1',r:'Sobrecarga Postural debido a trabajo de pie',fam:'MUS'},{c:'D1',r:'Exigencias psicológicas en el trabajo',fam:'PSI'}], tieneClave:true}); },
+  analizarTarea: function(t){ return new Promise(function(ok){ setTimeout(function(){ ok({
+    observacionesFoto: t.fotos.length ? 'Se observa piso de baldosa húmedo, peldaño sin cinta antideslizante y tránsito de camiones junto a la caseta.' : '',
+    riesgos:[
+      {peligro:'Piso liso o húmedo en la caseta',origen:'descripcion',codigo:'A1',riesgo:'Caídas al mismo nivel',fam:'SEG',p:2,c:2,justificacion:'Tránsito frecuente sobre superficie resbaladiza.'},
+      {peligro:'Peldaño de acceso sin antideslizante',origen:t.fotos.length?'foto':'descripcion',codigo:'A2',riesgo:'Caídas a distinto nivel',fam:'SEG',p:2,c:2,justificacion:'Desnivel en el ingreso a la caseta.'},
+      {peligro:'Tránsito de vehículos y camiones en portería',origen:'descripcion',codigo:'I1',riesgo:'Atropellos o golpes con vehículos',fam:'SEG',p:2,c:4,justificacion:'Control de acceso junto a vía vehicular.'},
+      {peligro:'Trabajo al aire libre expuesto al sol',origen:'descripcion',codigo:'P4',riesgo:'Exposición a Radiaciones No Ionizantes',fam:'HIG',p:4,c:2,justificacion:'Radiación UV en temporada estival.'},
+      {peligro:'Bipedestación prolongada',origen:'descripcion',codigo:'T1',riesgo:'Sobrecarga Postural debido a trabajo de pie',fam:'MUS',p:2,c:2,justificacion:'Turnos largos de pie.'},
+      {peligro:'Atención de público y conflictos en el acceso',origen:'descripcion',codigo:'D1',riesgo:'Exigencias psicológicas en el trabajo',fam:'PSI',p:2,c:2,justificacion:'Interacción con personas molestas.'}
+    ]}); }, 900); }); },
+  clasificarMedidas: function(t, riesgos, txt){ return new Promise(function(ok){ setTimeout(function(){
+    var med = [{texto:'Entrega de ODI',jerarquia:'Control administrativo',aplicaA:[0,1,2,3,4,5]},{texto:'Entrega de EPP (zapatos, chaleco reflectante)',jerarquia:'EPP',aplicaA:[0,1,2]},{texto:'Protector solar',jerarquia:'EPP',aplicaA:[3]}];
+    var prop = ['Instalar piso antideslizante en caseta','Instalar cinta antideslizante y pasamanos en peldaño','Demarcar paso peatonal segregado y lomo de toro','Instalar toldo o techado sobre zona de control','Disponer silla para alternar postura y pausas activas','Protocolo de manejo de conflictos y apoyo de supervisión'];
+    var jer = ['Control de ingeniería','Control de ingeniería','Control de ingeniería','Control de ingeniería','Control administrativo','Control administrativo'];
+    var esp = Object.keys(t.sensibles||{}).some(function(k){return t.sensibles[k];});
+    ok({medidasActuales: med, riesgos: riesgos.map(function(r,i){ return {
+      medidaPropuesta: prop[i]||'Reforzar procedimiento de trabajo seguro', jerarquia: jer[i]||'Control administrativo',
+      requisitoLegal: ['DS 594, Art. 5','DS 594, Art. 5','DS 44, Art. 15','Ley 20.096 / Protocolo UV','Protocolo TMERT','Protocolo CEAL-SM'][i]||'DS 44, Art. 15',
+      pRes: 1, cRes: r.c, medidaEspecial: esp?'Evaluar adecuación del puesto con médico del trabajo':'', pEsp: esp?1:0, cEsp: esp?r.c:0,
+      medidasActuales: med.filter(function(m){return m.aplicaA.indexOf(i)>=0;}).map(function(m){return m.jerarquia+': '+m.texto;}) }; })});
+  }, 900); }); },
+  generarYEnviar: function(m){ return new Promise(function(ok){ setTimeout(function(){
+    ok({email:m.email, url:'#', nombre:'Matriz IPER - '+(m.centro||'Centro')+' (demo)', total:m.tareas.reduce(function(a,t){return a+t.riesgos.length;},0)}); }, 900); }); }
+};
+
+init();
+</script>
+</body>
+</html>
