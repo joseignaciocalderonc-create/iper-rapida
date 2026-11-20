@@ -1535,7 +1535,7 @@ function qrSvg(texto, px){
 }
 
 /* ======================= Constantes ======================= */
-var VERSION_APP = '9.0';
+var VERSION_APP = '10.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -1588,6 +1588,15 @@ var MEDIDAS_RAPIDAS = ['Charla de inducción','Capacitación','Procedimiento de 
 var CEAL_OPC = ['Sin evaluar','Riesgo bajo','Riesgo medio','Riesgo alto'];
 var ROLES = {visualizador:1, evaluador:2, validador:3, admin:4};
 var ROLES_TXT = {visualizador:'Visualizador', evaluador:'Evaluador', validador:'Validador', admin:'Administrador'};
+
+/* ======================= Reinicio (v10): el teléfono parte de cero una vez ======================= */
+var REINICIO_APP = 'v10';
+(function(){ try{
+  if (localStorage.getItem('iper_reinicio')===REINICIO_APP) return;
+  Object.keys(localStorage).filter(function(k){ return /^iper_/.test(k); }).forEach(function(k){ localStorage.removeItem(k); });
+  try{ indexedDB.deleteDatabase('iper_fotos'); }catch(e){}
+  localStorage.setItem('iper_reinicio', REINICIO_APP);
+}catch(e){} })();
 
 /* ======================= Estado ======================= */
 var cfg = Object.assign({empresa:'', centro:'', respEjec:'', respSeg:'', aprobador:'', email:'', apiUrl:'', token:'', ceal:{}, privacidad:false}, load('iper_cfg', {}));
@@ -1696,6 +1705,7 @@ function abrirCentro(nombre, seccion){
     (x.tieneLogo?'<button class="btn ghost peligro" id="cLogoQuitar">Quitar</button>':'')+'</div>',
     x.tieneLogo?1:0, 1, abierta==='logo', 'logo');
   if (c && c.carpeta) h += '<p style="margin:14px 0 4px"><a href="'+esc(c.carpeta)+'" target="_blank" rel="noopener">Abrir la carpeta de la instalación en Drive</a></p>';
+  if (c && puede('admin')) h += '<button class="btn ghost peligro" style="width:100%;margin-bottom:6px" id="cDel" type="button">'+ico('borrar')+'Eliminar esta instalación</button>';
   h += '<p class="muted">'+(c?'Puedes cambiar el nombre: sus tareas, medidas y documentos se mantienen.':'Se creará la carpeta Razón social / Instalación en Drive, con subcarpetas para matrices, evidencias y firmas.')+'</p>'+
     '<button class="btn" id="cOk">'+(c?'Guardar ficha':'Registrar instalación')+'</button>';
   abrirSheet(h);
@@ -1712,6 +1722,7 @@ function abrirCentro(nombre, seccion){
     procesarFoto(file, 360, true).then(function(img){ logoNuevo = {mime:img.mime, data:img.data};
       $('cLogoPrev').innerHTML = '<img src="data:'+img.mime+';base64,'+img.data+'" alt="" style="max-height:60px;max-width:180px"> <span class="muted">Se guardará al tocar '+(c?'Guardar ficha':'Registrar instalación')+'</span>'; });
   };
+  if ($('cDel')) $('cDel').onclick = function(){ confirmarEliminarCentro(c); };
   if ($('cLogoQuitar')) $('cLogoQuitar').onclick = function(){ logoNuevo = null; $('cLogoPrev').innerHTML = '<span class="muted">El logo se quitará al guardar.</span>'; };
   $('cOk').onclick = function(){
     var v = function(id){ return $(id).value.trim(); };
@@ -1993,7 +2004,7 @@ function pintarCabecera(){
   $('btnAjustes').classList.toggle('hidden', tab==='acceso');
   $('btnAtras').setAttribute('aria-label', tab==='ajustes' ? 'Volver' : 'Volver a Mis instalaciones');
   if (tab==='ajustes'){ $('logoH').innerHTML = ''; $('hTit').textContent = 'Ajustes'; $('hSub').textContent = ''; }
-  else if (enC){ $('logoH').innerHTML = ''; $('hTit').textContent = nomC(cfg.centro); $('hSub').textContent = ci ? ci.razonSocial : ''; }
+  else if (enC){ $('logoH').innerHTML = ''; $('hTit').textContent = nomC(cfg.centro); $('hSub').textContent = ci ? 'Empresa: '+ci.razonSocial : ''; }
   else {
     $('logoH').innerHTML = SRV.logo ? '<img src="'+SRV.logo+'" alt="">' : '<span class="marca"></span>';
     $('hTit').textContent = 'IPER Rápida';
@@ -2051,7 +2062,7 @@ function renderCentros(){
     if (!grupos[c.razonSocial]){ grupos[c.razonSocial] = []; orden.push(c.razonSocial); } grupos[c.razonSocial].push(c); });
   var bs = listaBorradores();
   h += orden.map(function(rs){
-    return '<div class="grp">'+esc(rs)+'</div><div class="list">'+grupos[rs].map(function(c){
+    return '<div class="grp">Empresa: '+esc(rs)+'</div><div class="list">'+grupos[rs].map(function(c){
       var enCurso = bs.filter(function(b){ return idC(b.centro)===c.id; }).length;
       var lugar = (c.ficha||{}).comuna || c.direccion || '';
       var meta = (c.tareas ? c.tareas+(c.tareas===1?' tarea':' tareas')+(c.actualizado?', actualizado el '+fecha(c.actualizado):'') : 'Sin tareas evaluadas');
@@ -2075,7 +2086,7 @@ function renderInicio(){
   var ci = centroInfo(cfg.centro), fi = (ci&&ci.ficha)||{}, h = '';
   var nT = (+fi.nHombres||0)+(+fi.nMujeres||0)+(+fi.nOtros||0);
   h += '<div class="chead"><span class="fi">'+ico('carpeta')+'</span><div style="flex:1;min-width:0"><h2 style="margin:0">'+esc(nomC(cfg.centro))+'</h2>'+
-    '<div class="muted">'+esc(ci?ci.razonSocial:'Instalación sin registrar')+(nT?', '+nT+' trabajadores':'')+'</div></div>'+
+    '<div class="muted">Empresa: <b style="color:var(--ink)">'+esc(ci?ci.razonSocial:'sin registrar')+'</b>'+(ci&&ci.rutEmpresa?'<br>RUT '+esc(ci.rutEmpresa):'')+(nT?'<br>'+nT+' personas trabajadoras':'')+'</div></div>'+
     (puede('validador')?'<button class="chip" id="btnFicha">'+ico('editar')+'Ficha</button>':'')+'</div>';
   if (puede('evaluador')) h += '<button class="btn" id="btnNueva">'+ico('mas')+'Nueva evaluación</button>';
   var bs = listaBorradores().filter(enEsteCentro), cola = bs.filter(function(b){return b.enCola;});
@@ -2670,6 +2681,7 @@ function renderMedidas(){
         (m.estado==='Pendiente'?'<button class="chip" data-mest="Implementada" data-id="'+m.id+'">Marcar implementada</button>':'')+
         (m.estado!=='Verificada'?'<button class="chip on" data-verif="'+m.id+'">'+ico('foto')+'Verificar con foto</button>':'')+
         (m.estado!=='Pendiente'?'<button class="chip" data-mest="Pendiente" data-id="'+m.id+'">Volver a pendiente</button>':'')+
+        (puede('validador')?'<button class="chip" data-delmed="'+m.id+'" style="color:var(--int)">'+ico('borrar')+'Eliminar</button>':'')+
       '</div>':'')+'</div>';
   }).join('');
   return [h,''];
@@ -2689,7 +2701,8 @@ function renderAjustes(){
       fila('btnCorreos', 'Correos de destino', esc(u.correo||'')+((u.correosDestino||[]).length?' y '+u.correosDestino.length+' más':''))+
       fila('btnClaveIA', 'Tu clave gratuita de IA', u.tieneClaveGemini?'Configurada: tus análisis usan tu propio cupo':'Opcional: análisis más rápidos y sin esperas')+
       fila('btnCambiarClave', 'Cambiar contraseña', '')+
-      '<button class="li" id="btnSalir2"><span class="tx"><b style="color:var(--int)">Cerrar sesión</b></span></button></div>';
+      '<button class="li" id="btnSalir2"><span class="tx"><b style="color:var(--int)">Cerrar sesión</b></span></button></div>'+
+      '<button class="btn ghost peligro" style="width:100%;margin-bottom:6px" id="btnBorrarCuenta">Eliminar mi cuenta</button>';
   }
   h += '<div class="card'+(u && u.tipo==='cuenta'?' hidden':'')+'"><h3>Tu cuenta</h3>';
   if (modo()==='demo') h += '<p class="muted" style="margin:0 0 8px">Modo demostración: los datos no se guardan. Para conectarte, abre el enlace de acceso que te envió quien administra la app.</p>';
@@ -3008,6 +3021,29 @@ function abrirCambiarClave(){
     if (n.length<8 || !/[a-zA-Z]/.test(n) || !/\d/.test(n)) return toast('La contraseña debe tener al menos 8 caracteres, con letras y números.');
     if (n!==$('ccNueva2').value) return toast('Las contraseñas no coinciden.');
     busy(true,'Guardando…'); run('cambiarClave', $('ccAct').value, n).then(function(r){ busy(false); cfg.token = r.token; save('iper_cfg', cfg); cerrarSheet(); toast('Contraseña cambiada.'); }).catch(function(e){ busy(false); toast(e.message); }); };
+}
+function confirmarEliminarCentro(c){
+  abrirSheet(cabecera('Eliminar instalación')+'<div class="note aviso">Se eliminan <b>'+esc(c.nombre)+'</b> ('+esc(c.razonSocial)+') y todo lo suyo: matriz, medidas, personas, fichas IRL y su carpeta de Drive (queda 30 días en la papelera de Drive). No se puede deshacer desde la app.</div>'+
+    lab('Para confirmar, escribe ELIMINAR')+'<input type="text" id="dcConf" autocomplete="off" autocapitalize="characters">'+
+    '<div style="height:14px"></div><button class="btn" style="background:var(--int)" id="dcSi">Eliminar instalación</button><button class="btn ghost" style="width:100%;margin-top:6px" onclick="cerrarSheet()">Cancelar</button>');
+  $('dcSi').onclick = function(){
+    if ($('dcConf').value.trim().toUpperCase()!=='ELIMINAR') return toast('Escribe ELIMINAR para confirmar.');
+    busy(true,'Eliminando instalación…');
+    run('eliminarCentro', c.id, 'ELIMINAR').then(function(r){
+      busy(false); SRV.centros = r.centros; Object.keys(borradores).forEach(function(k){ if (idC(borradores[k].centro)===c.id) borrarBorrador(k); });
+      if (idC(cfg.centro)===c.id){ cfg.centro = ''; save('iper_cfg', cfg); } aplicarConfig({}); cerrarSheet(); cur = null; tab = 'centros'; render(); toast('Instalación eliminada.');
+    }).catch(function(e){ busy(false); toast(e.message); });
+  };
+}
+function confirmarEliminarCuenta(){
+  abrirSheet(cabecera('Eliminar mi cuenta')+'<div class="note aviso">Se eliminan tu cuenta y todas tus instalaciones, con sus matrices, medidas, personas y documentos. No se puede deshacer.</div>'+
+    campoClave('ecClave','Tu contraseña')+'<div style="height:14px"></div><button class="btn" style="background:var(--int)" id="ecSi">Eliminar mi cuenta</button><button class="btn ghost" style="width:100%;margin-top:6px" onclick="cerrarSheet()">Cancelar</button>');
+  $('ecSi').onclick = function(){
+    if (!$('ecClave').value) return toast('Escribe tu contraseña.');
+    busy(true,'Eliminando cuenta…');
+    run('eliminarCuenta', $('ecClave').value).then(function(){ busy(false); cerrarSheet();
+      Object.keys(borradores).forEach(function(k){ borrarBorrador(k); }); cerrarSesionLocal('Tu cuenta fue eliminada.'); }).catch(function(e){ busy(false); toast(e.message); });
+  };
 }
 function cerrarSesion(){
   if (modo()==='demo'){ cfg.demo = false; save('iper_cfg', cfg); cerrarSesionLocal(''); return; }
@@ -3347,7 +3383,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<9) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
+    if (!c.version || c.version<10) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
     else toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -3552,7 +3588,7 @@ document.addEventListener('click', function(e){
   if (/^ac[A-Z]/.test(b.id)){ e.preventDefault(); accionAcceso(b.id); return; }
   if (d.verclave){ var ic = $(d.verclave); ic.type = ic.type==='password'?'text':'password'; b.textContent = ic.type==='password'?'Mostrar':'Ocultar'; return; }
   if (b.id==='btnPerfil'){ abrirPerfil(); return; } if (b.id==='btnCorreos'){ abrirCorreos(); return; } if (b.id==='btnClaveIA'){ abrirClaveGemini(); return; }
-  if (b.id==='btnCambiarClave'){ abrirCambiarClave(); return; } if (b.id==='btnSalir2'){ cerrarSesion(); return; }
+  if (b.id==='btnCambiarClave'){ abrirCambiarClave(); return; } if (b.id==='btnBorrarCuenta'){ confirmarEliminarCuenta(); return; } if (b.id==='btnSalir2'){ cerrarSesion(); return; }
   if (d.ficha!=null){ abrirFichaPuesto(d.ficha); return; }
   if (d.docs){ abrirDocumentos([d.docs]); return; }
   if (b.id==='btnAddTrab'){ abrirTrabajador(null); return; } if (b.id==='btnDocsVarios'){ abrirDocumentos(null); return; }
@@ -3600,6 +3636,9 @@ document.addEventListener('click', function(e){
       var ci0 = centroInfo(cur.centro); if (ci0) (ci0.responsables = ci0.responsables||[]).push({nombre:p0.nombre, cargo:p0.cargo}); }
       tk().guardada = false; guardarBorrador(); render(true); }); }
   else if (d.mresp){ cambiarResponsableMedida(d.mresp); }
+  else if (d.delmed){ var idm = d.delmed, antesM = datos.medidas.slice(); datos.medidas = datos.medidas.filter(function(x){ return x.id!==idm; }); render(true);
+    conDeshacer('Medida eliminada. También se quita de la matriz.', function(){ datos.medidas = antesM; render(true); },
+      function(){ run('eliminarMedida', idm).then(function(){ datos.panel = null; datos.cumpl = null; }).catch(function(er){ toast(er.message); cargar('medidas'); }); }); }
   else if (d.share){ var us = (datos.usuarios||[]).filter(function(x){return x.id===d.share;})[0]; if (us) compartirAcceso(us); }
   else if (b.id==='btnNueva') nuevaEvaluacion();
   else if (b.id==='btnCopiarDesde') copiarDesde();
@@ -3664,7 +3703,7 @@ function init2(){
     run('getConfig').then(function(c){
       aplicarConfig(c);
       if (init.enlace) toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<9)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<10)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
       else if (!c.tieneClave && puede('admin') && !(c.usuario||{}).tieneClaveGemini) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       if (!abrirUnico()) render(true);
@@ -3713,7 +3752,10 @@ var Demo = (function(){
         {tarea:'Orden y aseo del puesto de trabajo al término de la jornada.', rutinaria:true, motivo:'Tarea habitual que no aparece en la lista'},
         {tarea:'Actuación ante una emergencia o evacuación de la instalación.', rutinaria:false, motivo:'Toda persona participa en las emergencias'}]}; },
     logoCentro: function(){ return {logo:''}; },
-    salir: function(){ return {ok:true}; }, guardarPerfil: function(){ return {ok:true}; }, cambiarClave: function(){ return {token:''}; },
+    salir: function(){ return {ok:true}; },
+    eliminarMedida: function(id){ DB.medidas = DB.medidas.filter(function(m){ return m.id!==id; }); return {ok:true}; },
+    eliminarCentro: function(id){ DB.centros = DB.centros.filter(function(c){ return c.id!==id; }); DB.tareas = DB.tareas.filter(function(t){ return t.centro!==id; }); DB.medidas = DB.medidas.filter(function(m){ return m.centro!==id; }); return {ok:true, centros:centrosDemo()}; },
+    eliminarCuenta: function(){ return {ok:true}; }, guardarPerfil: function(){ return {ok:true}; }, cambiarClave: function(){ return {token:''}; },
     listarPersonal: function(c){ var ps = []; DB.tareas.filter(centro(c)).forEach(function(t){ if (ps.indexOf(t.puesto)<0) ps.push(t.puesto); });
       DB.puestos = DB.puestos || {}; DB.trab = DB.trab || [];
       return {puestos:ps.map(function(p){ var f = DB.puestos[c+'|'+p]; return {puesto:p, ficha:!!f, actualizada:f?f.fecha:''}; }),
