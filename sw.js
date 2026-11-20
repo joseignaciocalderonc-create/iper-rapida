@@ -1,6 +1,6 @@
 /* Service worker de IPER Rápida: guarda la app para abrirla rápido y sin conexión.
    Las llamadas al servidor (IA, Excel) nunca se guardan en caché. */
-var CACHE = 'iper-rapida-v10-2';
+var CACHE = 'iper-rapida-v11';
 var ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {
@@ -21,5 +21,14 @@ self.addEventListener('fetch', function (e) {
     return res;
   }).catch(function () {
     return caches.match(req).then(function (r) { return r || caches.match('index.html'); });
+  }));
+});
+
+// Al tocar un aviso ("Análisis listo", "Documentos listos"…), abre la app o la trae al frente
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (l) {
+    for (var i = 0; i < l.length; i++) { if ('focus' in l[i]) return l[i].focus(); }
+    return self.clients.openWindow ? self.clients.openWindow('./') : null;
   }));
 });
