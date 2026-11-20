@@ -1535,7 +1535,7 @@ function qrSvg(texto, px){
 }
 
 /* ======================= Constantes ======================= */
-var VERSION_APP = '10.0';
+var VERSION_APP = '10.1';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -2044,7 +2044,7 @@ function cargando(){ return '<div class="empty">Cargando…</div>'; }
 function sinConexionMsg(){ return '<div class="empty">Sin conexión. Puedes seguir preparando evaluaciones: se analizarán al volver la señal.</div>'; }
 
 /* ======================= Mis centros (carpetas) ======================= */
-function puedeCrearCentro(){ return puede('validador') && (!SRV.usuario || SRV.usuario.todosLosCentros!==false); }
+function puedeCrearCentro(){ var u = SRV.usuario; if (u && u.tipo==='cuenta') return true; return puede('validador') && (!u || u.todosLosCentros!==false); }
 function renderCentros(){
   var L = SRV.centros||[], nom = nombreCorto(), h = '';
   h += '<h2>Mis instalaciones</h2><p class="sub">'+(nom?'Hola, '+esc(nom)+'. ':'')+'Cada instalación es una carpeta con sus propios datos, matriz, medidas y documentos.</p>';
