@@ -158,6 +158,9 @@
   .qr{display:flex;justify-content:center;margin:10px 0}
   .linkbox{word-break:break-all;font-size:12px;background:#f6f4ef;border-radius:10px;padding:10px;color:var(--muted)}
   details>summary{cursor:pointer}
+  .toggle-sw{width:46px;height:26px;border-radius:99px;border:0;background:#c9c3b8;position:relative;flex:none;padding:0}
+  .toggle-sw::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s}
+  .toggle-sw.on{background:var(--brand)} .toggle-sw.on::after{left:23px}
 
 </style>
 </head>
@@ -1443,7 +1446,7 @@ function qrSvg(texto, px){
 }
 
 /* ======================= Constantes ======================= */
-var VERSION_APP = '5.0';
+var VERSION_APP = '7.0';
 var FAM = {SEG:'Seguridad y emergencias', HIG:'Higiénicos', PSI:'Psicosociales', MUS:'Músculo esqueléticos'};
 var JER = ['Eliminación','Sustitución','Control de ingeniería','Control administrativo','EPP'];
 var JER_FUERTES = ['Eliminación','Sustitución','Control de ingeniería'];
@@ -1457,21 +1460,77 @@ var ROLES_TXT = {visualizador:'Visualizador', evaluador:'Evaluador', validador:'
 
 /* ======================= Estado ======================= */
 var cfg = Object.assign({empresa:'', centro:'', respEjec:'', respSeg:'', aprobador:'', email:'', apiUrl:'', token:'', ceal:{}, privacidad:false}, load('iper_cfg', {}));
-var SRV = {catalogo:[], listas:{}, avisosActivos:false, version:0, usuario:null, logo:''};
+var SRV = {catalogo:[], listas:{}, avisosActivos:false, version:0, usuario:null, logo:'', centros:[]};
 var CATMAP = {};
 var tab = 'inicio', paso = 1;
 var borradores = cargarBorradores();
 var cur = null;
-var datos = {tareas:null, medidas:null, panel:null, usuarios:null};
+var datos = {tareas:null, medidas:null, panel:null, usuarios:null, cumpl:null};
+var selMatriz = null; // selección de tareas para copiar o mover
 var filtroMed = 'abiertas', filtroMatriz = '';
 var EN_APPS_SCRIPT = !!(window.google && google.script && google.script.run);
 
 function modo(){ return EN_APPS_SCRIPT ? 'gas' : (cfg.apiUrl && cfg.token ? 'api' : 'demo'); }
+function experto(){ return cfg.experto!=null ? !!cfg.experto : puede('validador'); }
+function nc(n,c,sep){ n=String(n||'').trim(); c=String(c||'').trim(); return n&&c ? n+(sep||' – ')+c : (n||c); }
 function rol(){ return (SRV.usuario && SRV.usuario.rol) || (modo()==='api' ? 'visualizador' : 'admin'); }
 function puede(min){ return (ROLES[rol()]||0) >= (ROLES[min]||0); }
 function load(k,d){ try{ var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
 function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ toast('El teléfono no tiene espacio para guardar el borrador.'); } }
-function cealCentro(){ return (cfg.ceal||{})[cfg.centro] || 'Sin evaluar'; }
+function centroInfo(nombre){ nombre = String(nombre||'').trim().toLowerCase(); return (SRV.centros||[]).filter(function(c){ return String(c.nombre).trim().toLowerCase()===nombre; })[0] || null; }
+function cealCentro(nombre){ var c = centroInfo(nombre||cfg.centro); return (c && c.ceal) || (cfg.ceal||{})[nombre||cfg.centro] || 'Sin evaluar'; }
+function etiquetaCentro(nombre){ var c = centroInfo(nombre); return c ? c.razonSocial+' · '+c.nombre : (nombre||''); }
+/** Cambia el centro de trabajo activo (matriz, medidas y panel se separan por centro). */
+function elegirCentro(nombre){
+  var c = centroInfo(nombre); cfg.centro = nombre; cfg.empresa = c ? c.razonSocial : cfg.empresa; save('iper_cfg', cfg);
+  datos = {tareas:null, medidas:null, panel:null, usuarios:datos.usuarios, cumpl:null}; filtroMatriz = ''; selMatriz = null;
+  cerrarSheet(); toast('📍 Centro activo: '+etiquetaCentro(nombre));
+  if (tab==='evaluar') tab = 'inicio';
+  irA(tab);
+}
+function abrirSelectorCentro(){
+  var L = SRV.centros||[], grupos = {};
+  L.forEach(function(c){ (grupos[c.razonSocial] = grupos[c.razonSocial]||[]).push(c); });
+  var h = cabecera('Centro de trabajo')+'<p class="muted" style="margin-top:0">Cada centro tiene su propia matriz, medidas, firmas y carpeta en Drive.</p>';
+  h += Object.keys(grupos).map(function(rs){
+    return '<div class="grp">'+esc(rs)+'</div>'+grupos[rs].map(function(c){
+      var on = String(c.nombre).toLowerCase()===String(cfg.centro).toLowerCase();
+      return '<button class="btn '+(on?'':'sec')+'" style="margin-bottom:8px;justify-content:space-between" data-centro="'+esc(c.nombre)+'"><span>'+(on?'✓ ':'')+esc(c.nombre)+'</span><span class="muted" style="font-weight:400;font-size:12px">'+esc(c.direccion||'')+'</span></button>'; }).join('');
+  }).join('') || '<div class="empty">Aún no hay centros de trabajo.</div>';
+  if (puede('validador')) h += '<div style="height:6px"></div><button class="btn ghost" style="width:100%" id="btnNuevoCentro2">+ Nuevo centro de trabajo</button>';
+  else if (!L.length) h += '<p class="muted">Pide al administrador que cree el centro de trabajo.</p>';
+  abrirSheet(h);
+}
+function abrirCentro(nombre){
+  var c = nombre ? centroInfo(nombre) : null, x = c || {razonSocial:(cfg.empresa||''), rutEmpresa:'', nombre:'', direccion:'', ceal:'Sin evaluar'};
+  var rsList = Array.from(new Set((SRV.centros||[]).map(function(k){return k.razonSocial;})));
+  abrirSheet(cabecera(c?'Editar centro':'Nuevo centro de trabajo')+
+    '<label>Razón social (entidad empleadora)</label><input type="text" id="cRs" list="dlRs" value="'+esc(x.razonSocial)+'" placeholder="Ej: Copeval S.A.">'+
+    '<datalist id="dlRs">'+rsList.map(function(r){return '<option value="'+esc(r)+'">';}).join('')+'</datalist>'+
+    '<label>RUT de la empresa (opcional)</label><input type="text" id="cRut" value="'+esc(x.rutEmpresa||'')+'" placeholder="76.123.456-7">'+
+    '<label>Nombre del centro o instalación</label><input type="text" id="cNom" value="'+esc(x.nombre)+'" placeholder="Ej: Copeval Rancagua">'+
+    '<label>Dirección (opcional)</label><input type="text" id="cDir" value="'+esc(x.direccion||'')+'">'+
+    '<label>Resultado CEAL-SM del centro</label><select id="cCeal">'+CEAL_OPC.map(function(o){return '<option'+(o===(x.ceal||'Sin evaluar')?' selected':'')+'>'+o+'</option>';}).join('')+'</select>'+
+    '<h3 style="margin-top:16px">Responsables de las medidas</h3>'+
+    '<label>Responsable de ejecución · Nombre</label><input type="text" id="cEjN" value="'+esc(x.respEjecNombre||'')+'" placeholder="Ej: María Soto">'+
+    '<label>Responsable de ejecución · Cargo</label><input type="text" id="cEjC" value="'+esc(x.respEjecCargo||'')+'" placeholder="Ej: Representante Legal">'+
+    '<label>Responsable de seguimiento · Nombre</label><input type="text" id="cSgN" value="'+esc(x.respSegNombre||'')+'" placeholder="Ej: Pedro Rojas">'+
+    '<label>Responsable de seguimiento · Cargo</label><input type="text" id="cSgC" value="'+esc(x.respSegCargo||'')+'" placeholder="Ej: Asesor en Prevención de Riesgos">'+
+    (c?'<p class="muted">Si cambias el nombre, todas sus tareas, medidas y firmas pasan al nombre nuevo.</p>':'<p class="muted">Se creará la carpeta <b>Razón social / Centro</b> en tu Drive, con subcarpetas para matrices, evidencias y firmas.</p>')+
+    '<div style="height:10px"></div><button class="btn" id="cOk">'+(c?'Guardar cambios':'Crear centro')+'</button>');
+  $('cOk').onclick = function(){
+    var d = {id:c?c.id:null, razonSocial:$('cRs').value.trim(), rutEmpresa:$('cRut').value.trim(), nombre:$('cNom').value.trim(), direccion:$('cDir').value.trim(), ceal:$('cCeal').value,
+      respEjecNombre:$('cEjN').value.trim(), respEjecCargo:$('cEjC').value.trim(), respSegNombre:$('cSgN').value.trim(), respSegCargo:$('cSgC').value.trim()};
+    if (!d.razonSocial || !d.nombre) return toast('Completa la razón social y el nombre del centro.');
+    if (d.rutEmpresa && !rutValido(d.rutEmpresa)) return toast('El RUT de la empresa no es válido.');
+    busy(true,'Guardando centro…');
+    run('guardarCentro', d).then(function(r){
+      busy(false); SRV.centros = r.centros; aplicarConfig({});
+      var renombrado = c && c.nombre!==d.nombre && String(cfg.centro).toLowerCase()===String(c.nombre).toLowerCase();
+      if (!c || renombrado) elegirCentro(d.nombre); else { cerrarSheet(); render(true); toast('Centro actualizado.'); }
+    }).catch(function(e){ busy(false); toast(e.message, 6000); });
+  };
+}
 
 /* ======================= Evaluaciones en curso (borradores) ======================= */
 /* Una evaluación = un puesto con una o varias tareas. Se pueden tener varias a medias.
@@ -1521,12 +1580,14 @@ function estadoBorrador(b){
 }
 function abrirBorrador(bid){
   cur = normalizarBorrador(borradores[bid]); paso = borradores[bid].paso || 1;
+  if (!cur.centro) cur.centro = cfg.centro;
   if (paso===3 && !cur.tareas.some(function(t){return t.analizado;})) paso = cur.tareas.length ? 2 : 1;
   tab = 'evaluar'; render();
   fotosDB('leer', cur.bid).then(function(f){ if (cur && cur.bid===bid && f){ cur.fotos = f; render(true); } });
 }
 function nuevaEvaluacion(base){
-  cur = Object.assign(nuevoPuesto(), base||{}); paso = cur.puesto ? 2 : 1;
+  if (!cfg.centro && !(base && base.centro)){ abrirSelectorCentro(); toast('Primero elige el centro de trabajo de esta evaluación.'); return; }
+  cur = Object.assign(nuevoPuesto(), {centro:cfg.centro}, base||{}); paso = cur.puesto ? 2 : 1;
   if (paso===2 && !cur.tareas.length) cur.tareas.push(nuevaTareaItem(base && base.ultimasMedidas || ''));
   delete cur.ultimasMedidas;
   guardarBorrador(); tab = 'evaluar'; render();
@@ -1717,18 +1778,18 @@ function pintarCabecera(){
 function irA(t){
   if (t==='evaluar' && !cur){ var l = listaBorradores(); if (l.length) { abrirBorrador(l[0].bid); return; } nuevaEvaluacion(); return; }
   tab=t;
-  if (t==='matriz') cargar('tareas'); if (t==='medidas') cargar('medidas'); if (t==='inicio') cargar('panel');
+  if (t==='matriz') cargar('tareas'); if (t==='medidas') cargar('medidas'); if (t==='inicio'){ cargar('panel'); cargar('cumpl'); }
   if (t==='ajustes' && puede('admin') && modo()!=='gas') cargarUsuarios();
   render();
 }
 function cargar(que){
   if (!cfg.centro || !online()) return;
-  var fn = {tareas:'listarTareas', medidas:'listarMedidas', panel:'panel'}[que];
+  var fn = {tareas:'listarTareas', medidas:'listarMedidas', panel:'panel', cumpl:'cumplimiento'}[que];
   datos[que] = null;
-  run(fn, cfg.centro).then(function(d){ datos[que]=d; if ((que==='tareas'&&tab==='matriz')||(que==='medidas'&&tab==='medidas')||(que==='panel'&&tab==='inicio')) render(true); })
-    .catch(function(e){ datos[que]=que==='panel'?{error:true}:[]; if (!e.sinRed) toast(e.message); render(true); });
+  run(fn, cfg.centro).then(function(d){ datos[que]=d; if ((que==='tareas'&&tab==='matriz')||(que==='medidas'&&tab==='medidas')||((que==='panel'||que==='cumpl')&&tab==='inicio')) render(true); })
+    .catch(function(e){ datos[que]=(que==='panel'||que==='cumpl')?{error:true}:[]; if (!e.sinRed) toast(e.message); render(true); });
 }
-function sinCentro(){ return '<div class="empty">Primero indica el <b>centro de trabajo</b> en <a href="#" onclick="irA(\'ajustes\');return false">Ajustes ⚙️</a>.</div>'; }
+function sinCentro(){ return '<div class="empty">Primero elige o crea el <b>centro de trabajo</b>.<br><br><button class="btn" style="width:auto;display:inline-flex" onclick="abrirSelectorCentro()">📍 Elegir centro</button></div>'; }
 function cargando(){ return '<div class="empty">Cargando…</div>'; }
 function sinConexionMsg(){ return '<div class="empty">📴 Sin conexión. Puedes seguir preparando evaluaciones: se analizarán al volver la señal.</div>'; }
 
@@ -1737,8 +1798,8 @@ function renderInicio(){
   var u = SRV.usuario, h = '';
   var nom = u && u.nombre ? (u.nombre.indexOf('@')>0 ? (cfg.aprobador || u.nombre.split('@')[0]) : u.nombre) : '';
   h += '<div class="hola">Hola'+(nom?', '+esc(nom.split(' ')[0]):'')+'</div>'+
-    '<p class="sub" style="margin-bottom:8px">'+(u?esc(u.rolTxt||ROLES_TXT[u.rol]||''):'')+(modo()==='demo'?' · modo demostración':'')+'</p>'+
-    '<button class="centro-chip" onclick="irA(\'ajustes\')">📍 '+esc(cfg.centro||'Elegir centro de trabajo')+'</button>';
+    '<p class="sub" style="margin-bottom:8px">'+(u?esc(nc(u.cargo, u.rolTxt||ROLES_TXT[u.rol]||'', ' · ')):'')+(modo()==='demo'?' · modo demostración':'')+'</p>'+
+    '<button class="centro-chip" onclick="abrirSelectorCentro()">📍 '+esc(cfg.centro?etiquetaCentro(cfg.centro):'Elegir centro de trabajo')+' ▾</button>';
   if (puede('evaluador')) h += '<button class="hero" id="btnNueva">＋ Nueva evaluación</button>';
   var bs = listaBorradores(), cola = bs.filter(function(b){return b.enCola;});
   if (cola.length) h += '<div class="note" style="margin-bottom:10px">📴 <b>'+cola.length+'</b> evaluación(es) esperando conexión.'+
@@ -1746,19 +1807,29 @@ function renderInicio(){
   if (bs.length){
     h += '<div class="sec-t">Evaluaciones en curso</div>'+bs.map(function(b){
       var e = estadoBorrador(b), n = b.tareas.filter(function(t){return t.tarea;}).length;
-      return '<div class="item"><div class="tx" data-abrir="'+b.bid+'"><b>'+esc(b.puesto||'Puesto sin nombre')+'</b><span>'+esc(b.proceso||'—')+' · '+n+' tarea(s) · '+hace(b.actualizado)+'</span><br>'+
+      return '<div class="item"><div class="tx" data-abrir="'+b.bid+'"><b>'+esc(b.puesto||'Puesto sin nombre')+'</b><span>📍 '+esc(b.centro||'sin centro')+' · '+esc(b.proceso||'—')+' · '+n+' tarea(s) · '+hace(b.actualizado)+'</span><br>'+
         '<span class="st '+e.cls+'">'+e.txt+'</span></div><button class="x" data-delb="'+b.bid+'" aria-label="Eliminar">×</button></div>';
     }).join('');
   }
   if (!cfg.centro) return [h+sinCentro(),''];
   if (!online()) return [h+sinConexionMsg(),''];
-  var P = datos.panel;
-  h += '<div class="sec-t">Pendientes · '+esc(cfg.centro)+'</div>';
+  var P = datos.panel, K = datos.cumpl;
+  if (P && !P.error && !P.tareas){
+    h += '<div class="card" style="border-style:dashed"><h3>Empieza la matriz de '+esc(cfg.centro)+'</h3><p class="muted" style="margin:0 0 10px">Evalúa los puestos uno a uno, o parte copiando la matriz de otro centro y ajusta lo que cambia.</p>'+
+      (puede('evaluador')?'<button class="btn sec" id="btnCopiarDesde">📋 Copiar desde otro centro</button>':'')+'</div>';
+  }
+  h += '<div class="sec-t">Cumplimiento · '+esc(cfg.centro)+'</div>';
+  if (!K) h += cargando();
+  else if (!K.error){
+    var col = K.pct>=80?'var(--tol)':K.pct>=50?'var(--mod)':'var(--int)';
+    h += '<div class="card"><div style="display:flex;align-items:center;gap:12px;margin-bottom:8px"><b style="font-size:30px;color:'+col+'">'+K.pct+'%</b>'+
+      '<div style="flex:1"><div class="t" style="height:10px;background:#f0ede6;border-radius:99px;overflow:hidden"><i style="display:block;height:100%;width:'+K.pct+'%;background:'+col+'"></i></div>'+
+      '<span class="muted">'+K.ok+' de '+K.total+' puntos al día</span></div></div>'+
+      K.items.map(function(it,i){ return '<div class="rrow" data-cump="'+i+'" style="margin-bottom:6px"><span style="font-size:18px">'+(it.ok?'✅':'⚠️')+'</span><div class="tx"><b style="white-space:normal">'+esc(it.titulo)+'</b><span>'+esc(it.detalle)+'</span></div><span class="muted">›</span></div>'; }).join('')+'</div>';
+  }
   if (!P) return [h+cargando(),''];
-  if (P.error) return [h+'<div class="empty">No se pudo cargar el resumen.</div>',''];
+  if (P.error) return [h,''];
   var tile = function(v,t,al,acc){ return '<div class="tile'+(al&&v?' alerta':'')+'" data-ir="'+acc+'"><b>'+v+'</b><span>'+t+'</span></div>'; };
-  h += '<div class="tiles">'+tile(P.medidas.vencidas,'Medidas vencidas',true,'medidas:vencidas')+tile(P.reevaluar,'Tareas por reevaluar',true,'matriz')+
-    tile(P.estados.Borrador+P.estados.Revisada,'Por validar',false,'matriz')+tile(P.revisiones,'Revisiones próximas',true,'matriz')+'</div>';
   if (P.tareas){
     var colores = {Tolerable:'var(--tol)',Moderado:'var(--mod)',Importante:'var(--imp)',Intolerable:'var(--int)'};
     var barras = function(obj){ var max=Math.max(1,P.riesgos); return ['Intolerable','Importante','Moderado','Tolerable'].map(function(n){
@@ -1808,17 +1879,19 @@ function renderNueva(){
   var h = stepper(), bar='';
   if (cur.reevaluando) h += '<div class="banner">🔄 Reevaluando una tarea existente. Al guardar se actualizará en la matriz y volverá a <b>Borrador</b>.</div>';
   if (cur.enCola) h += '<div class="banner">📴 Esta evaluación está en cola. Se analizará cuando vuelva la conexión (o toca Analizar).</div>';
-  if (!cfg.centro) h += '<div class="note" style="margin-bottom:12px">Indica el centro de trabajo en <b>Ajustes ⚙️</b> antes de guardar.</div>';
+  if (cur.centro) h += '<div class="muted" style="margin:-4px 0 10px;font-size:13px">📍 <b>'+esc(etiquetaCentro(cur.centro))+'</b>'+(String(cur.centro).toLowerCase()!==String(cfg.centro).toLowerCase()?' <span class="st st-alerta">distinto del centro activo</span>':'')+'</div>';
+  else h += '<div class="note" style="margin-bottom:12px">Esta evaluación no tiene centro. <a href="#" onclick="cur.centro=cfg.centro;guardarBorrador();render(true);return false">Usar el centro activo</a></div>';
 
   if (paso===1){
-    var L = SRV.listas[cfg.centro] || {procesos:[],puestos:[]};
-    h += '<h2>1. Puesto de trabajo</h2><p class="sub">'+esc(cfg.centro||'Sin centro')+' · Datos comunes a todas las tareas del puesto.</p>'+
+    var L = SRV.listas[cur.centro] || {procesos:[],puestos:[]};
+    h += '<h2>1. Puesto de trabajo</h2><p class="sub">Datos comunes a todas las tareas del puesto.</p>'+
     '<div class="card">'+
       '<label>Proceso</label><input type="text" list="dlProc" data-f="proceso" value="'+esc(cur.proceso)+'" placeholder="Ej: Control de portería">'+
       '<datalist id="dlProc">'+L.procesos.map(function(p){return '<option value="'+esc(p)+'">';}).join('')+'</datalist>'+
       '<label>Puesto de trabajo</label><input type="text" list="dlPue" data-f="puesto" value="'+esc(cur.puesto)+'" placeholder="Ej: Guardia de seguridad">'+
       '<datalist id="dlPue">'+L.puestos.map(function(p){return '<option value="'+esc(p)+'">';}).join('')+'</datalist>'+
       '<label>Lugar específico (opcional)</label><input type="text" data-f="lugar" value="'+esc(cur.lugar)+'" placeholder="Ej: Portería central">'+
+      '<div style="height:12px"></div><button class="btn sec" id="btnBiblio">📚 Elegir de puestos tipo</button>'+
     '</div>'+
     '<div class="card"><h3>Personas en el puesto</h3><div class="row">'+
       '<div><label>Hombres</label><input type="number" min="0" inputmode="numeric" data-f="hombres" value="'+esc(cur.hombres)+'"></div>'+
@@ -1855,7 +1928,7 @@ function renderNueva(){
         '<details style="margin-top:8px"><summary class="muted">+ Agregar medidas rápidas</summary><div class="chips" style="margin-top:8px">'+MEDIDAS_RAPIDAS.map(function(m){return '<button class="chip" style="padding:5px 10px;font-size:12px" data-med="'+esc(m)+'" data-k="'+k+'">+ '+m+'</button>';}).join('')+'</div></details>'+
       '</div>';
     }).join('');
-    h += '<button class="btn sec" id="btnAddTarea">+ Agregar otra tarea</button>';
+    h += '<div class="row"><button class="btn sec" id="btnAddTarea">+ Agregar tarea</button><button class="btn sec" id="btnBiblio">📚 Tareas tipo</button></div>';
     h += '<p class="muted" style="text-align:center">Las medidas de la tarea anterior se copian a la nueva; edítalas si cambian.</p>';
     var hayRes = cur.tareas.some(function(t){return t.analizado;});
     bar = '<button class="btn sec" style="flex:.35" data-go="1">Atrás</button>'+
@@ -1882,7 +1955,18 @@ function renderNueva(){
       h += '<details class="card"><summary><b>Medidas actuales clasificadas ('+t.medidasActuales.length+')</b></summary>'+t.medidasActuales.map(function(m){
         return '<div style="margin:6px 0"><span class="tag">'+esc(m.jerarquia)+'</span>'+esc(m.texto)+'</div>'; }).join('')+'</details>';
     }
-    h += t.riesgos.map(function(r,i){ return riskRow(r,i) + (cur.exp===i ? riskCard(r,i) : ''); }).join('') || '<div class="empty">No hay riesgos. Agrega uno manualmente.</div>';
+    var idx = t.riesgos.map(function(r,i){ return i; });
+    var importa = function(r){ return r.confirmado===null || r.p*r.c>=8 || (r.reglas&&r.reglas.length) || r.origen==='manual'; };
+    var att = idx.filter(function(i){ return importa(t.riesgos[i]) && t.riesgos[i].confirmado!==false; }), resto = idx.filter(function(i){ return att.indexOf(i)<0; });
+    var fila = function(i){ return riskRow(t.riesgos[i],i) + (cur.exp===i ? riskCard(t.riesgos[i],i) : ''); };
+    if (!t.riesgos.length) h += '<div class="empty">No hay riesgos. Agrega uno manualmente.</div>';
+    if (att.length) h += '<div class="sec-t" style="margin-top:4px">⚠️ Revisa estos '+att.length+' de '+t.riesgos.length+'</div>'+att.map(fila).join('');
+    else if (t.riesgos.length) h += '<div class="note" style="margin-bottom:10px;background:var(--tol-bg);border-color:#bfe0b8;color:#245c2b">✅ Ningún riesgo requiere atención especial en esta tarea.</div>';
+    if (resto.length){
+      var abierto = cur.verResto || !att.length;
+      h += '<button class="btn ghost" style="width:100%;justify-content:space-between" id="btnVerResto"><span>✓ '+resto.length+' riesgo(s) tolerables o moderados'+(att.length?' (aceptados)':'')+'</span><span>'+(abierto?'▴':'▾')+'</span></button>';
+      if (abierto) h += resto.map(fila).join('');
+    }
     h += '<div class="row" style="margin-top:6px"><button class="btn sec" id="btnAddRisk">+ Agregar riesgo</button>'+
       (t.guardada?'':'<button class="btn sec" id="btnAceptar">✓ Aceptar todo</button>')+'</div>';
     var sig = cur.tareas.findIndex(function(x,k){ return k>cur.idx && x.analizado; });
@@ -1895,14 +1979,36 @@ function renderNueva(){
 
 /** Fila resumida de un riesgo (toca para ver el detalle). */
 function riskRow(r,i){
-  var n = nivel(r.p*r.c), nr = nivel(r.pRes*r.cRes), desc = r.confirmado===false;
+  var n = nivel(r.p*r.c), nr = nivel(r.pRes*r.cRes), desc = r.confirmado===false, X = experto();
+  var niveles = X ? (r.p*r.c)+(r.fam==='PSI'?'':' → '+(r.pRes*r.cRes)) : n+(r.fam==='PSI'||nr===n?'':' → '+nr);
   return '<div class="rrow'+(cur.exp===i?' open':'')+'" data-exp="'+i+'" style="'+(desc?'opacity:.45':'')+'">'+
-    '<span class="dot d-'+n+'"></span><div class="tx"><b>'+esc(r.codigo)+' · '+esc(r.peligro)+'</b><span>'+esc(r.riesgo)+'</span></div>'+
-    (desc?'<span class="vv muted">Descartado</span>':'<span class="vv">'+(r.confirmado===null?'⚠️📷 ':'')+(r.p*r.c)+(r.fam==='PSI'?'':' → '+(r.pRes*r.cRes))+'</span>')+
+    '<span class="dot d-'+n+'"></span><div class="tx"><b>'+(X?esc(r.codigo)+' · ':'')+esc(r.peligro)+'</b><span>'+esc(r.riesgo)+'</span></div>'+
+    (desc?'<span class="vv muted">Descartado</span>':'<span class="vv">'+(r.confirmado===null?'⚠️📷 ':'')+niveles+'</span>')+
     '<span class="muted">'+(cur.exp===i?'▴':'▾')+'</span></div>';
 }
 
-function riskCard(r,i){
+/** Ficha simple (usuario final): nivel en palabras, peligro y medida. El detalle técnico queda a un toque. */
+function riskCardSimple(r,i){
+  var n = nivel(r.p*r.c), nr = nivel(r.pRes*r.cRes), descartado = r.confirmado===false;
+  var h = '<div class="card risk bl-'+n+'" style="margin-top:-4px"><div class="hd"><div style="flex:1"><div class="fam">'+FAM[r.fam]+(r.origen==='foto'?' · 📷 foto':'')+'</div>'+
+    '<div class="rname">'+esc(r.riesgo)+'</div></div><button class="x" data-del="'+i+'" aria-label="Eliminar">×</button></div>';
+  if (r.origen==='foto' && r.confirmado!==true){
+    h += '<div class="confirm">'+(descartado?'Descartado. ':'La IA vio este peligro en la foto. ¿Existe realmente en esta tarea?')+
+      '<div class="row"><button class="btn" data-conf="'+i+'" data-v="1">Sí, existe</button><button class="btn sec" data-conf="'+i+'" data-v="0">No</button></div></div>';
+  }
+  if (descartado) return h+'</div>';
+  h += '<div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap"><span class="muted">Nivel hoy</span><span class="vep '+n+'" style="min-width:0;padding:4px 10px">'+n+'</span>'+
+    (r.fam==='PSI'?'':'<span class="muted">→ con la medida</span><span class="vep '+nr+'" style="min-width:0;padding:4px 10px">'+nr+'</span>')+'</div>'+
+    (r.justificacion?'<div class="just" style="margin-top:0">'+esc(r.justificacion)+'</div>':'')+
+    '<label>Peligro</label><input type="text" data-rf="peligro" data-i="'+i+'" value="'+esc(r.peligro)+'">'+
+    '<label>¿Qué hay que hacer? (medida)</label><textarea data-rf="medidaPropuesta" data-i="'+i+'" style="min-height:60px">'+esc(r.medidaPropuesta)+'</textarea>'+
+    (r.medidaEspecial?'<label>Para personas especialmente sensibles</label><textarea data-rf="medidaEspecial" data-i="'+i+'" style="min-height:50px">'+esc(r.medidaEspecial)+'</textarea>':'')+
+    (r.protocolos&&r.protocolos.length?'<div style="margin-top:8px">'+r.protocolos.map(function(p){return '<span class="prot">📋 Requiere: '+esc(p)+'</span>';}).join('')+'</div>':'')+
+    '<div style="height:8px"></div><button class="btn ghost" style="width:100%" data-det="'+i+'">'+(cur.det===i?'Ocultar detalle técnico ▴':'Ajustar nivel o ver detalle técnico ▾')+'</button>';
+  return h+'</div>' + (cur.det===i ? riskCardExperto(r,i) : '');
+}
+function riskCard(r,i){ return experto() ? riskCardExperto(r,i) : riskCardSimple(r,i); }
+function riskCardExperto(r,i){
   var n = nivel(r.p*r.c), descartado = r.confirmado===false;
   var h = '<div class="card risk bl-'+n+'" style="margin-top:-4px">'+
     '<div class="hd"><div style="flex:1"><div class="fam">'+FAM[r.fam]+(r.origen==='foto'?' · 📷 foto':'')+(r.origen==='manual'?' · manual':'')+'</div>'+
@@ -2034,7 +2140,7 @@ function analizarCore(ev){
   function una(t, reintento){
     busy(true, 'Analizando'+(total>1?' tarea '+(hechas+1)+' de '+total:'')+' · '+(ev.puesto||'')+'…', (ev.fotos.length?ev.fotos.length+' foto(s) · ':'')+'La pantalla se mantiene encendida.');
     var payload = {id:t.id, proceso:ev.proceso, puesto:ev.puesto, tarea:t.tarea, lugar:ev.lugar, rutinaria:t.rutinaria,
-      hombres:ev.hombres, mujeres:ev.mujeres, otros:ev.otros, sensibles:ev.sensibles, medidasTexto:t.medidasTexto, ceal:cealCentro(),
+      hombres:ev.hombres, mujeres:ev.mujeres, otros:ev.otros, sensibles:ev.sensibles, medidasTexto:t.medidasTexto, ceal:cealCentro(ev.centro),
       variasTareas:varias, fotos:ev.fotos.map(function(f){return {mime:f.mime,data:f.data};})};
     return run('analizarTarea', payload).then(function(res){
       t.riesgos = res.riesgos; t.observacionesFoto = res.observacionesFoto; t.medidasActuales = res.medidasActuales;
@@ -2074,7 +2180,7 @@ function analizarPendientes(){
 
 /** Guarda en la matriz todas las tareas analizadas que falten. */
 function guardarTodas(){
-  if (!cfg.centro){ toast('Indica el centro de trabajo en Ajustes.'); return; }
+  if (!cur.centro){ toast('Esta evaluación no tiene centro de trabajo.'); return; }
   if (!online()){ toast('Guardar necesita conexión. Tu evaluación queda en el teléfono; guárdala al volver la señal.', 6000); return; }
   var lista = cur.tareas.filter(function(t){ return t.analizado && !t.guardada; });
   var conFoto = lista.filter(function(t){ return t.riesgos.some(function(r){return r.confirmado===null;}); });
@@ -2087,8 +2193,9 @@ function guardarTodas(){
       busy(true,'Guardando tarea '+(n+1)+' de '+lista.length+'…');
       var copia = {id:t.id, proceso:cur.proceso, puesto:cur.puesto, tarea:t.tarea, lugar:cur.lugar, rutinaria:t.rutinaria,
         hombres:cur.hombres, mujeres:cur.mujeres, otros:cur.otros, sensibles:cur.sensibles, medidasTexto:t.medidasTexto,
-        medidasActuales:t.medidasActuales, observacionesFoto:t.observacionesFoto, riesgos:t.riesgos, ceal:cealCentro()};
-      return run('guardarTarea', JSON.parse(JSON.stringify(copia)), {empresa:cfg.empresa, centro:cfg.centro, respEjec:cfg.respEjec}).then(function(r){
+        medidasActuales:t.medidasActuales, observacionesFoto:t.observacionesFoto, riesgos:t.riesgos, ceal:cealCentro(cur.centro)};
+      var ci = centroInfo(cur.centro);
+      return run('guardarTarea', JSON.parse(JSON.stringify(copia)), {empresa:ci?ci.razonSocial:cfg.empresa, centro:cur.centro, respEjec:cfg.respEjec}).then(function(r){
         t.id = r.id; t.guardada = true; n++; riesgos += r.riesgos; medidas += r.medidas; guardarBorrador();
       });
     });
@@ -2115,10 +2222,10 @@ function siguiente(op){
   if (terminada) borrarBorrador(base.bid);
   cur = null;
   if (op==='tareas'){
-    nuevaEvaluacion({proceso:base.proceso, puesto:base.puesto, lugar:base.lugar, hombres:base.hombres, mujeres:base.mujeres, otros:base.otros, sensibles:base.sensibles, fotos:base.fotos, ultimasMedidas:ult});
+    nuevaEvaluacion({centro:base.centro, proceso:base.proceso, puesto:base.puesto, lugar:base.lugar, hombres:base.hombres, mujeres:base.mujeres, otros:base.otros, sensibles:base.sensibles, fotos:base.fotos, ultimasMedidas:ult});
     fotosDB('guardar', cur.bid, cur.fotos);
-  } else if (op==='puesto'){ nuevaEvaluacion({proceso:base.proceso, lugar:base.lugar}); }
-  else if (op==='proceso'){ nuevaEvaluacion(); }
+  } else if (op==='puesto'){ nuevaEvaluacion({centro:base.centro, proceso:base.proceso, lugar:base.lugar}); }
+  else if (op==='proceso'){ nuevaEvaluacion({centro:base.centro}); }
   else { irA('matriz'); }
 }
 
@@ -2126,7 +2233,7 @@ function reevaluar(id){
   busy(true,'Cargando tarea…');
   run('obtenerTarea', id).then(function(d){
     busy(false);
-    var ev = Object.assign(nuevoPuesto(), {proceso:d.proceso, puesto:d.puesto, lugar:d.lugar||'', hombres:d.hombres, mujeres:d.mujeres, otros:d.otros, sensibles:d.sensibles||{}, reevaluando:true});
+    var ev = Object.assign(nuevoPuesto(), {centro:cfg.centro, proceso:d.proceso, puesto:d.puesto, lugar:d.lugar||'', hombres:d.hombres, mujeres:d.mujeres, otros:d.otros, sensibles:d.sensibles||{}, reevaluando:true});
     var t = nuevaTareaItem(d.medidasTexto||'');
     Object.assign(t, {id:d.id, tarea:d.tarea, rutinaria:d.rutinaria!==false, riesgos:d.riesgos||[], medidasActuales:d.medidasActuales||[], observacionesFoto:d.observacionesFoto||'', analizado:true, cambiada:true});
     t.riesgos.forEach(function(r){ r.confirmado = true; });
@@ -2140,11 +2247,12 @@ function renderMatriz(){
   if (!cfg.centro) return [sinCentro(),''];
   if (!online()) return [sinConexionMsg(),''];
   var L = datos.tareas;
-  var h = '<h2>Matriz IPER</h2><p class="sub">'+esc(cfg.centro)+(L?' · '+L.length+' tarea(s)':'')+'</p>';
+  var h = '<h2>Matriz IPER</h2><p class="sub">📍 '+esc(etiquetaCentro(cfg.centro))+(L?' · '+L.length+' tarea(s)':'')+' · <a href="#" onclick="abrirSelectorCentro();return false">cambiar</a></p>';
   if (!L) return [h+cargando(),''];
   if (!L.length) return [h+'<div class="empty">Aún no hay tareas en este centro.'+(puede('evaluador')?'<br>Crea una con <b>＋ Nueva evaluación</b> en Inicio.':'')+'</div>',''];
   var puestos = Array.from(new Set(L.map(function(t){return t.puesto;})));
-  h += '<div class="row" style="margin-bottom:10px"><button class="btn sec" id="btnFirmas">✍️ Firmas por puesto</button></div>';
+  h += '<div class="row" style="margin-bottom:10px"><button class="btn sec" id="btnFirmas">✍️ Firmas por puesto</button>'+
+    (puede('evaluador')&&otrosCentros().length?'<button class="btn sec" id="btnSel">'+(selMatriz?'✕ Cancelar':'☑ Copiar o mover')+'</button>':'')+'</div>';
   h += '<input type="text" class="search" id="buscar" placeholder="🔎 Buscar proceso, puesto o tarea" value="'+esc(filtroMatriz)+'">';
   var q = filtroMatriz.toLowerCase(), grupoAnt = '';
   var vis = L.filter(function(t){ return !q || (t.proceso+' '+t.puesto+' '+t.tarea).toLowerCase().indexOf(q)>=0; });
@@ -2154,13 +2262,13 @@ function renderMatriz(){
     var badges = '<span class="st st-'+t.estado+'">'+t.estado+'</span>';
     if (t.reevaluar) badges += ' <span class="st st-alerta">Reevaluar</span>';
     if (t.revisionVencida) badges += ' <span class="st st-alerta">Revisión '+fecha(t.proximaRevision)+'</span>';
-    return cab+'<div class="card risk bl-'+nivel(t.maxVep)+'"><div class="rname">'+esc(t.tarea)+'</div>'+
+    return cab+'<div class="card risk bl-'+nivel(t.maxVep)+'">'+(selMatriz?'<label style="display:flex;gap:8px;align-items:center;margin:0 0 6px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)"><input type="checkbox" class="selT" value="'+t.id+'" '+(selMatriz[t.id]?'checked':'')+' style="width:22px;height:22px"> Seleccionar</label>':'')+'<div class="rname">'+esc(t.tarea)+'</div>'+
       '<div style="margin:6px 0">'+badges+'</div>'+
       '<div class="sum">'+['Intolerable','Importante','Moderado','Tolerable'].filter(function(n){return t.conteo[n];}).map(function(n){
         return '<span class="vep '+n+'" style="min-width:0;padding:4px 9px;font-size:12px">'+t.conteo[n]+' '+n+'</span>';}).join('')+
       '<span class="tag" style="align-self:center">'+t.verificadas+'/'+t.medidas+' medidas verificadas</span></div>'+
       (t.reevaluar?'<div class="muted" style="margin-top:6px">⚠️ '+esc(t.motivo)+'</div>':'')+
-      (t.estado==='Validada'?'<div class="muted" style="margin-top:6px">Validada por '+esc(t.aprobador)+' el '+fecha(t.fechaAprobacion)+' · próxima revisión '+fecha(t.proximaRevision)+'</div>':'')+
+      (t.estado==='Validada'?'<div class="muted" style="margin-top:6px">Validada por <b>'+esc(t.aprobador)+'</b> el '+fecha(t.fechaAprobacion)+' · próxima revisión '+fecha(t.proximaRevision)+'</div>':'')+
       '<div class="muted" style="margin-top:4px;font-size:12px">'+(t.creadoPor?'Evaluó: '+esc(t.creadoPor):'')+(t.modificadoPor&&t.modificadoPor!==t.creadoPor?' · Último cambio: '+esc(t.modificadoPor):'')+(t.version>1?' · versión '+t.version:'')+'</div>'+
       '<div class="acts">'+
         (t.estado==='Borrador'&&puede('evaluador')?'<button class="chip" data-est="Revisada" data-id="'+t.id+'">✓ Revisada</button>':'')+
@@ -2171,6 +2279,10 @@ function renderMatriz(){
       '</div></div>';
   }).join('') || '<div class="empty">Sin resultados para la búsqueda.</div>';
   h += '<div class="muted" style="text-align:center;margin:8px 0">Se enviará a: <b>'+esc(cfg.email||'(configura tu correo en Ajustes)')+'</b></div>';
+  if (selMatriz){
+    var nSel = Object.keys(selMatriz).filter(function(k){return selMatriz[k];}).length;
+    return [h,'<button class="btn sec" id="btnCopiarSel">📋 Copiar ('+nSel+')</button>'+(puede('validador')?'<button class="btn sec" id="btnMoverSel">➡️ Mover ('+nSel+')</button>':'')];
+  }
   return [h,'<button class="btn" id="btnEnviar">📧 Enviar matriz (Excel + PDF)</button>'];
 }
 
@@ -2221,17 +2333,25 @@ function renderAjustes(){
     (modo()==='api'?'<div style="height:8px"></div><button class="btn ghost" style="width:100%;color:var(--int)" id="btnDesconectar">Desconectar este teléfono</button>':'')+'</details>';
   h += '</div>';
   // Centro
-  h += '<div class="card"><h3>Centro de trabajo</h3>'+
-    '<label>Centro de trabajo</label><input type="text" list="dlCentros" data-c="centro" value="'+esc(cfg.centro)+'" placeholder="Ej: Copeval San Carlos">'+
-    '<datalist id="dlCentros">'+centros.map(function(c){return '<option value="'+esc(c)+'">';}).join('')+'</datalist>'+
-    '<label>Empresa / entidad empleadora</label><input type="text" data-c="empresa" value="'+esc(cfg.empresa)+'">'+
-    '<label>Resultado CEAL-SM del centro (riesgos psicosociales)</label><select id="selCeal">'+CEAL_OPC.map(function(o){return '<option'+(o===cealCentro()?' selected':'')+'>'+o+'</option>';}).join('')+'</select>'+
+  var ci = centroInfo(cfg.centro);
+  h += '<div class="card"><h3>Centro de trabajo activo</h3>'+
+    (ci ? '<div style="font-size:15px"><b>'+esc(ci.nombre)+'</b><br><span class="muted">'+esc(ci.razonSocial)+(ci.rutEmpresa?' · RUT '+esc(ci.rutEmpresa):'')+(ci.direccion?'<br>'+esc(ci.direccion):'')+'<br>CEAL-SM: '+esc(ci.ceal||'Sin evaluar')+'</span></div>'+
+      '<div class="muted" style="margin-top:8px;font-size:13px"><b>Responsable de ejecución:</b> '+esc(nc(ci.respEjecNombre,ci.respEjecCargo)||'— (se usa "Representante Legal")')+
+      '<br><b>Responsable de seguimiento:</b> '+esc(nc(ci.respSegNombre,ci.respSegCargo)||'— (se usa "Asesor prevención de riesgos")')+'</div>'+
+      (ci.carpeta?'<p style="margin:8px 0 0"><a href="'+esc(ci.carpeta)+'" target="_blank">📁 Abrir carpeta del centro en Drive</a></p>':'')
+      : '<p class="muted" style="margin:0">'+(cfg.centro?esc(cfg.centro)+' (sin registrar)':'Ninguno seleccionado')+'</p>')+
+    '<div class="row" style="margin-top:12px"><button class="btn sec" onclick="abrirSelectorCentro()">Cambiar centro</button>'+
+    (puede('validador')&&ci?'<button class="btn sec" id="btnEditarCentro">Editar</button>':'')+'</div>'+
+    (puede('validador')?'<div style="height:8px"></div><button class="btn ghost" style="width:100%" id="btnNuevoCentro">+ Nuevo centro de trabajo</button>':'')+
     '</div>';
-  h += '<div class="card"><h3>Responsables y correo</h3>'+
-    '<label>Responsable de ejecución</label><input type="text" data-c="respEjec" value="'+esc(cfg.respEjec)+'" placeholder="Nombre [Cargo]">'+
-    '<label>Responsable de seguimiento</label><input type="text" data-c="respSeg" value="'+esc(cfg.respSeg)+'" placeholder="Nombre [Cargo]">'+
-    (puede('admin')?'<label>Tu nombre (para validaciones como administrador)</label><input type="text" data-c="aprobador" value="'+esc(cfg.aprobador)+'" placeholder="Si no, se usa NOMBRE_ADMIN del servidor">':'')+
+  h += '<div class="card"><h3>Tus datos</h3>'+
+    (u&&u.esAdminPrincipal?
+      '<label>Tu nombre</label><input type="text" data-c="aprobador" value="'+esc(cfg.aprobador)+'" placeholder="'+esc(u.nombre||'')+'">'+
+      '<label>Tu cargo</label><input type="text" data-c="aprobadorCargo" value="'+esc(cfg.aprobadorCargo||'')+'" placeholder="'+esc(u.cargo||'Ej: Experto en Prevención de Riesgos')+'">'+
+      '<p class="muted" style="margin:4px 0 0">Se usan al validar. Para que aparezcan también en historial, firmas y levantamiento, completa NOMBRE_ADMIN y CARGO_ADMIN en el servidor.</p>'
+      : (u?'<p style="margin:0"><b>'+esc(u.nombre)+'</b>'+(u.cargo?'<br><span class="muted">'+esc(u.cargo)+'</span>':'')+'</p>':''))+
     '<label>Correo de destino de la matriz</label><input type="email" data-c="email" value="'+esc(cfg.email)+'" placeholder="tucorreo@empresa.cl">'+
+    '<label style="display:flex;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);margin-top:14px"><button class="toggle-sw'+(experto()?' on':'')+'" id="btnExperto" aria-label="Modo experto"></button> Modo experto <span class="muted" style="font-weight:400">(P, C, VEP, códigos y requisitos legales)</span></label>'+
     '</div>';
   if (puede('admin')){
     // Logo
@@ -2244,7 +2364,7 @@ function renderAjustes(){
       var US = datos.usuarios;
       h += '<div class="card"><h3>Usuarios</h3><p class="muted" style="margin:0 0 10px">Cada persona entra con su propio enlace. <b>Evaluador</b>: crea evaluaciones · <b>Validador</b>: además valida y elimina · <b>Visualizador</b>: solo consulta.</p>';
       h += !US ? cargando() : (US.length ? US.map(function(x){
-        return '<div class="item"><div class="tx" data-user="'+x.id+'"><b>'+esc(x.nombre)+(x.activo?'':' (desactivado)')+'</b><span>'+esc(x.rolTxt)+(x.correo?' · '+esc(x.correo):'')+'</span></div>'+
+        return '<div class="item"><div class="tx" data-user="'+x.id+'"><b>'+esc(x.nombre)+(x.activo?'':' (desactivado)')+'</b><span>'+(x.cargo?esc(x.cargo)+' · ':'')+esc(x.rolTxt)+(x.correo?' · '+esc(x.correo):'')+'</span></div>'+
           (x.activo?'<button class="chip" data-share="'+x.id+'">🔗 Enviar acceso</button>':'')+'</div>'; }).join('') : '<div class="muted">Aún no hay usuarios.</div>');
       h += '<div style="height:8px"></div><button class="btn sec" id="btnNuevoUsuario">+ Agregar usuario</button></div>';
     }
@@ -2340,16 +2460,17 @@ function enlaceAcceso(codigo){
   return base + '?c=' + b64url(JSON.stringify({u:cfg.apiUrl, k:codigo}));
 }
 function abrirUsuario(id){
-  var x = (datos.usuarios||[]).filter(function(u){return u.id===id;})[0] || {nombre:'', correo:'', rol:'evaluador', activo:true};
+  var x = (datos.usuarios||[]).filter(function(u){return u.id===id;})[0] || {nombre:'', cargo:'', correo:'', rol:'evaluador', activo:true};
   abrirSheet(cabecera(id?'Editar usuario':'Nuevo usuario')+
-    '<label>Nombre</label><input type="text" id="uNom" value="'+esc(x.nombre)+'">'+
+    '<label>Nombre</label><input type="text" id="uNom" value="'+esc(x.nombre)+'" placeholder="Ej: Ana Pérez">'+
+    '<label>Cargo</label><input type="text" id="uCar" value="'+esc(x.cargo||'')+'" placeholder="Ej: Supervisora de bodega">'+
     '<label>Correo (para recibir la matriz)</label><input type="email" id="uCor" value="'+esc(x.correo)+'">'+
     '<label>Perfil</label><select id="uRol">'+['evaluador','validador','visualizador','admin'].map(function(r){return '<option value="'+r+'"'+(x.rol===r?' selected':'')+'>'+ROLES_TXT[r]+'</option>';}).join('')+'</select>'+
     (id?'<label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink)"><input type="checkbox" id="uAct" '+(x.activo?'checked':'')+' style="width:20px;height:20px"> Acceso activo</label>'+
       '<label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink)"><input type="checkbox" id="uNew" style="width:20px;height:20px"> Generar nuevo código (el enlace anterior deja de funcionar)</label>':'')+
     '<div style="height:14px"></div><button class="btn" id="uOk">'+(id?'Guardar cambios':'Crear y compartir acceso')+'</button>');
   $('uOk').onclick = function(){
-    var d = {id:id||null, nombre:$('uNom').value.trim(), correo:$('uCor').value.trim(), rol:$('uRol').value, activo: id?$('uAct').checked:true, nuevoCodigo: id?$('uNew').checked:false};
+    var d = {id:id||null, nombre:$('uNom').value.trim(), cargo:$('uCar').value.trim(), correo:$('uCor').value.trim(), rol:$('uRol').value, activo: id?$('uAct').checked:true, nuevoCodigo: id?$('uNew').checked:false};
     busy(true,'Guardando…');
     run('guardarUsuario', d).then(function(r){
       busy(false); cerrarSheet(); cargarUsuarios();
@@ -2391,7 +2512,7 @@ function abrirFirma(puesto){
           '<div style="margin-top:4px">'+r.medidas.map(function(m){return '• '+esc(m);}).join('<br>')+'</div></div>'; }).join('');
     }).join('');
     abrirSheet(cabecera('Información de riesgos')+
-      '<p class="muted" style="margin-top:0">'+esc(cfg.empresa||'')+' · '+esc(cfg.centro)+'<br><b>Puesto: '+esc(puesto)+'</b></p>'+
+      '<p class="muted" style="margin-top:0">'+esc(etiquetaCentro(cfg.centro))+'<br><b>Puesto: '+esc(puesto)+'</b></p>'+
       (I.firmas.length?'<details class="card"><summary><b>'+I.firmas.length+' firma(s) registrada(s)</b></summary>'+I.firmas.map(function(f){
         return '<div style="margin:6px 0">'+esc(f.trabajador)+' · '+esc(f.rut)+' · '+fecha(f.fecha)+' <a href="'+esc(f.pdf)+'" target="_blank">PDF</a></div>'; }).join('')+'</details>':'')+
       '<div class="doc card">'+cont+'</div>'+
@@ -2466,7 +2587,7 @@ function procesarFoto(file, max, png){
 /* ======================= Acciones de matriz y medidas ======================= */
 function cambiarEstado(id, estado){
   busy(true, estado==='Validada'?'Validando…':'Actualizando…');
-  run('cambiarEstado', id, estado, cfg.aprobador).then(function(){ busy(false); toast(estado==='Validada'?'✅ Validada. Próxima revisión en 1 año.':'Marcada como revisada.'); cargar('tareas'); })
+  run('cambiarEstado', id, estado, {nombre:cfg.aprobador, cargo:cfg.aprobadorCargo}).then(function(){ busy(false); toast(estado==='Validada'?'✅ Validada. Próxima revisión en 1 año.':'Marcada como revisada.'); cargar('tareas'); })
     .catch(function(e){ busy(false); toast(e.message); });
 }
 function eliminarTarea(id){
@@ -2488,7 +2609,8 @@ function enviar(){
     busy(false);
     abrirSheet('<div style="text-align:center;padding:10px 4px"><div style="font-size:42px">📧</div><h2>Matriz enviada</h2>'+
       '<p class="muted">Se envió a <b>'+esc(r.email)+'</b>: Excel + PDF de la matriz + PDF de información de riesgos ('+r.total+' riesgos).</p>'+
-      (r.url&&r.url!=='#'?'<p><a href="'+esc(r.url)+'" target="_blank">Abrir copia en Google Sheets</a></p>':'')+
+      (r.url&&r.url!=='#'?'<p><a href="'+esc(r.url)+'" target="_blank">Abrir la matriz en Google Sheets</a></p>':'')+
+      (r.carpeta?'<p><a href="'+esc(r.carpeta)+'" target="_blank">📁 Abrir la carpeta del centro</a></p>':'')+
       '<button class="btn" onclick="cerrarSheet()">Listo</button></div>');
   }).catch(function(e){ busy(false); toast(e.message, 6000); });
 }
@@ -2496,7 +2618,9 @@ function enviar(){
 /* ======================= Configuración ======================= */
 function aplicarConfig(c){
   SRV = Object.assign(SRV, c); CATMAP = {}; (SRV.catalogo||[]).forEach(function(x){ CATMAP[x.c]=x; });
-  if (modo()!=='demo') save('iper_srv', {catalogo:SRV.catalogo, listas:SRV.listas, usuario:SRV.usuario, logo:SRV.logo, version:SRV.version});
+  if (modo()!=='demo') save('iper_srv', {catalogo:SRV.catalogo, listas:SRV.listas, usuario:SRV.usuario, logo:SRV.logo, version:SRV.version, centros:SRV.centros});
+  var ci = centroInfo(cfg.centro); if (ci && cfg.empresa!==ci.razonSocial){ cfg.empresa = ci.razonSocial; save('iper_cfg', cfg); }
+  if (!cfg.centro && (SRV.centros||[]).length===1){ cfg.centro = SRV.centros[0].nombre; cfg.empresa = SRV.centros[0].razonSocial; save('iper_cfg', cfg); }
   if (modo()!=='demo' && !cfg.email && c.email){ cfg.email = c.email; save('iper_cfg', cfg); }
 }
 function refrescarConfig(){ run('getConfig').then(function(c){ aplicarConfig(c); pintarCabecera(); }).catch(function(){}); }
@@ -2505,7 +2629,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<5) toast('Conectado, pero el servidor es una versión anterior. Actualiza Code.gs.', 7000);
+    if (!c.version || c.version<7) toast('Conectado, pero el servidor es una versión anterior. Actualiza Code.gs.', 7000);
     else toast('✅ Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -2537,6 +2661,122 @@ function migrarV1(){
   }).catch(function(e){ toast('No se pudieron pasar las tareas anteriores: '+e.message); });
 }
 
+/* ======================= Cumplimiento ======================= */
+function accionCumplimiento(i){
+  var it = datos.cumpl.items[i];
+  if (it.accion==='matriz') irA('matriz');
+  else if (it.accion==='medidas'){ filtroMed = /vencida/.test(it.detalle) ? 'vencidas' : 'abiertas'; irA('medidas'); }
+  else if (it.accion==='firmas'){ irA('matriz'); setTimeout(function(){ if (datos.tareas) elegirPuestoFirma(); else toast('Abre "✍️ Firmas por puesto" en la Matriz.'); }, 1200); }
+  else if (it.accion==='centro'){ if (puede('validador')) abrirCentro(cfg.centro); else toast('Pide a quien administra el centro que registre el resultado CEAL-SM.'); }
+  else if (it.accion==='enviar'){ enviar(); }
+  else if (it.accion==='protocolo'){
+    abrirSheet(cabecera('Protocolo')+'<h3>'+esc(it.protocolo)+'</h3><p>'+esc(it.ok?'Marcado como gestionado.':it.detalle)+'</p>'+
+      '<p class="muted">Gestiónalo con tu organismo administrador (mutualidad o ISL) y márcalo cuando esté implementado.</p>'+
+      (puede('evaluador')?'<button class="btn'+(it.ok?' sec':'')+'" id="protBtn">'+(it.ok?'Marcar como pendiente':'✅ Marcar como gestionado')+'</button>':''));
+    if ($('protBtn')) $('protBtn').onclick = function(){
+      busy(true,'Guardando…');
+      run('marcarProtocolo', cfg.centro, it.protocolo, !it.ok).then(function(){ busy(false); cerrarSheet(); cargar('cumpl'); }).catch(function(e){ busy(false); toast(e.message); });
+    };
+  }
+}
+
+/* ======================= Copiar o mover tareas entre centros ======================= */
+function otrosCentros(){ return (SRV.centros||[]).filter(function(c){ return String(c.nombre).toLowerCase()!==String(cfg.centro).toLowerCase(); }); }
+/** Desde un centro vacío: elegir el centro de origen y las tareas a copiar. */
+function copiarDesde(){
+  var L = otrosCentros();
+  if (!L.length) return toast('No hay otros centros de trabajo.');
+  abrirSheet(cabecera('Copiar desde otro centro')+'<p class="muted" style="margin-top:0">Las tareas copiadas quedan en <b>Borrador</b> en '+esc(cfg.centro)+', con sus medidas pendientes. Luego ajusta lo que cambie.</p>'+
+    L.map(function(c){ return '<button class="btn sec" style="margin-bottom:8px" data-origen="'+esc(c.nombre)+'">'+esc(c.razonSocial)+' · '+esc(c.nombre)+'</button>'; }).join(''));
+}
+function elegirTareasOrigen(origen){
+  busy(true,'Cargando tareas de '+origen+'…');
+  run('listarTareas', origen).then(function(L){
+    busy(false);
+    if (!L.length) return toast(origen+' no tiene tareas.');
+    var g = '', h = cabecera('Tareas de '+esc(origen))+'<label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink)"><input type="checkbox" id="selTodo" checked style="width:20px;height:20px"> Seleccionar todas ('+L.length+')</label>';
+    L.forEach(function(t){
+      var k = t.proceso+' · '+t.puesto; if (k!==g){ h += '<div class="grp">'+esc(k)+'</div>'; g = k; }
+      h += '<label style="display:flex;gap:10px;align-items:flex-start;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:400;margin:6px 0"><input type="checkbox" class="cpChk" value="'+t.id+'" checked style="width:20px;height:20px;flex:none;margin-top:2px"><span>'+esc(t.tarea)+' <span class="muted">('+t.riesgos+' riesgos)</span></span></label>';
+    });
+    h += '<div style="height:12px"></div><button class="btn" id="cpOk">Copiar a '+esc(cfg.centro)+'</button>';
+    abrirSheet(h);
+    $('selTodo').onchange = function(){ var v = this.checked; document.querySelectorAll('.cpChk').forEach(function(c){ c.checked = v; }); };
+    $('cpOk').onclick = function(){
+      var ids = Array.from(document.querySelectorAll('.cpChk')).filter(function(c){return c.checked;}).map(function(c){return c.value;});
+      ejecutarCopia(ids, cfg.centro, false);
+    };
+  }).catch(function(e){ busy(false); toast(e.message); });
+}
+function ejecutarCopia(ids, destino, mover){
+  if (!ids.length) return toast('Selecciona al menos una tarea.');
+  busy(true, (mover?'Moviendo ':'Copiando ')+ids.length+' tarea(s)…');
+  run('copiarTareas', ids, destino, !!mover).then(function(r){
+    busy(false); cerrarSheet(); selMatriz = null; datos.tareas = null; datos.panel = null; datos.cumpl = null;
+    toast('✅ '+r.n+' tarea(s) '+(mover?'movida(s)':'copiada(s)')+' a '+destino+'.', 5000);
+    irA(tab==='inicio'?'inicio':'matriz');
+  }).catch(function(e){ busy(false); toast(e.message, 6000); });
+}
+/** Desde la Matriz: copiar o mover las tareas seleccionadas a otro centro. */
+function destinoSeleccion(mover){
+  var ids = Object.keys(selMatriz||{}).filter(function(k){return selMatriz[k];});
+  if (!ids.length) return toast('Marca las tareas primero.');
+  var L = otrosCentros(); if (!L.length) return toast('No hay otros centros de trabajo.');
+  abrirSheet(cabecera((mover?'Mover ':'Copiar ')+ids.length+' tarea(s) a…')+
+    (mover?'<p class="muted" style="margin-top:0">Úsalo para corregir tareas guardadas en el centro equivocado. Se mueven con sus medidas y su historial.</p>':'<p class="muted" style="margin-top:0">La copia queda en Borrador en el centro de destino.</p>')+
+    L.map(function(c){ return '<button class="btn sec" style="margin-bottom:8px" data-destino="'+esc(c.nombre)+'" data-mover="'+(mover?1:0)+'">'+esc(c.razonSocial)+' · '+esc(c.nombre)+'</button>'; }).join(''));
+}
+
+/* ======================= Biblioteca: puestos tipo y tareas validadas ======================= */
+var BIBLIO = null;
+function abrirBiblioteca(){
+  if (!online()) return toast('La biblioteca necesita conexión.');
+  var mostrar = function(){
+    var h = cabecera('Puestos tipo')+'<p class="muted" style="margin-top:0">Elige un puesto y marca las tareas que aplican. Las tareas que ya validaste se pueden usar sin volver a analizarlas.</p>';
+    if (BIBLIO.validadas.length) h += '<div class="grp">De tus matrices validadas</div>'+BIBLIO.validadas.map(function(g,i){
+      return '<button class="btn sec" style="margin-bottom:8px;justify-content:space-between" data-bib="v'+i+'"><span>✅ '+esc(g.puesto)+'</span><span class="muted" style="font-weight:400;font-size:12px">'+g.tareas.length+' tarea(s)</span></button>'; }).join('');
+    h += '<div class="grp">Puestos frecuentes</div>'+BIBLIO.tipo.map(function(g,i){
+      return '<button class="btn sec" style="margin-bottom:8px;justify-content:space-between" data-bib="t'+i+'"><span>'+esc(g.puesto)+'</span><span class="muted" style="font-weight:400;font-size:12px">'+g.tareas.length+' tarea(s)</span></button>'; }).join('');
+    abrirSheet(h);
+  };
+  if (BIBLIO) return mostrar();
+  busy(true,'Cargando biblioteca…');
+  run('listarBiblioteca').then(function(b){ busy(false); BIBLIO = b; mostrar(); }).catch(function(e){ busy(false); toast(e.message); });
+}
+function elegirPuestoBiblio(key){
+  var validada = key[0]==='v', g = validada ? BIBLIO.validadas[+key.slice(1)] : BIBLIO.tipo[+key.slice(1)];
+  var h = cabecera(esc(g.puesto))+(validada?'<p class="muted" style="margin-top:0">Evaluadas y validadas en: '+esc(g.centros.join(', '))+'</p>':'')+
+    g.tareas.map(function(t,i){ return '<label style="display:flex;gap:10px;align-items:flex-start;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:400;background:#f6f4ef;border-radius:10px;padding:10px">'+
+      '<input type="checkbox" class="bibChk" data-i="'+i+'" checked style="width:20px;height:20px;flex:none;margin-top:2px"><span>'+esc(t.tarea)+(t.medidas?'<br><span class="muted">Medidas: '+esc(t.medidas)+'</span>':'')+'</span></label>'; }).join('');
+  if (validada) h += '<label style="display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:400;margin-top:12px"><input type="checkbox" id="bibUsarEval" checked style="width:20px;height:20px;flex:none"> Usar la evaluación ya validada (no volver a analizar; podrás ajustarla)</label>';
+  h += '<div style="height:12px"></div><button class="btn" id="bibOk">Usar tareas seleccionadas</button>';
+  abrirSheet(h);
+  $('bibOk').onclick = function(){
+    var elegidas = Array.from(document.querySelectorAll('.bibChk')).filter(function(c){return c.checked;}).map(function(c){ return g.tareas[+c.dataset.i]; });
+    if (!elegidas.length) return toast('Marca al menos una tarea.');
+    var usarEval = validada && $('bibUsarEval') && $('bibUsarEval').checked;
+    if (!cur.puesto.trim()) cur.puesto = g.puesto.replace(/\/a\b/,'');
+    if (!cur.proceso.trim() && g.proceso) cur.proceso = g.proceso;
+    cur.tareas = cur.tareas.filter(function(t){ return t.tarea.trim() || t.analizado; });
+    var agregar = function(lista){
+      lista.forEach(function(x){ cur.tareas.push(x); });
+      guardarBorrador(); cerrarSheet(); paso = 2; render();
+      toast(lista.length+' tarea(s) agregada(s).'+(usarEval?' Las evaluaciones validadas quedan listas en Resultados.':' Revisa sus medidas y analiza.'), 5000);
+    };
+    if (!usarEval) return agregar(elegidas.map(function(x){ var t = nuevaTareaItem(x.medidas); t.tarea = x.tarea; t.rutinaria = x.rutinaria!==false; return t; }));
+    busy(true,'Cargando evaluaciones validadas…');
+    Promise.all(elegidas.map(function(x){ return run('obtenerTarea', x.id); })).then(function(ds){
+      busy(false);
+      agregar(ds.map(function(d){
+        var t = nuevaTareaItem(d.medidasTexto||'');
+        Object.assign(t, {tarea:d.tarea, rutinaria:d.rutinaria!==false, riesgos:(d.riesgos||[]).map(function(r){ r.confirmado = true; return r; }),
+          medidasActuales:d.medidasActuales||[], observacionesFoto:'', analizado:true, aceptada:true});
+        return t;
+      }));
+    }).catch(function(e){ busy(false); toast(e.message); });
+  };
+}
+
 /* ======================= Eventos ======================= */
 document.querySelector('nav').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b) irA(b.dataset.tab); });
 document.addEventListener('input', function(e){
@@ -2549,6 +2789,7 @@ document.addEventListener('input', function(e){
 });
 document.addEventListener('change', function(e){
   var el = e.target;
+  if (el.classList.contains('selT')){ selMatriz[el.value] = el.checked; render(true); return; }
   if (el.id==='foto'){
     var files = Array.from(el.files).slice(0, 4-cur.fotos.length);
     busy(true,'Procesando fotos…');
@@ -2571,13 +2812,14 @@ document.addEventListener('change', function(e){
   if (el.dataset.rf==='jerarquia'){ var r = tk().riesgos[+el.dataset.i]; r.jerarquia = el.value; aplicarReglas(r); tk().guardada = false; guardarBorrador(); render(true); }
 });
 document.addEventListener('click', function(e){
-  var t0 = e.target.closest('[data-exp],[data-abrir],[data-ir],[data-user]');
+  var t0 = e.target.closest('[data-exp],[data-abrir],[data-ir],[data-user],[data-cump]');
   if (t0 && !e.target.closest('button')){
     var dd = t0.dataset;
     if (dd.exp!=null){ var i = +dd.exp; cur.exp = cur.exp===i ? -1 : i; render(true); var rr = document.querySelector('[data-exp="'+i+'"]'); if (rr) rr.scrollIntoView({block:'nearest'}); return; }
     if (dd.abrir){ abrirBorrador(dd.abrir); return; }
     if (dd.ir){ var a = dd.ir.split(':'); if (a[1]) filtroMed = a[1]; irA(a[0]); return; }
     if (dd.user){ abrirUsuario(dd.user); return; }
+    if (dd.cump!=null){ accionCumplimiento(+dd.cump); return; }
   }
   var b = e.target.closest('button,[data-delph]'); if (!b) return;
   var d = b.dataset;
@@ -2615,6 +2857,20 @@ document.addEventListener('click', function(e){
   else if (d.firmar){ abrirFirma(d.firmar); }
   else if (d.share){ var us = (datos.usuarios||[]).filter(function(x){return x.id===d.share;})[0]; if (us) compartirAcceso(us); }
   else if (b.id==='btnNueva') nuevaEvaluacion();
+  else if (b.id==='btnCopiarDesde') copiarDesde();
+  else if (d.origen) elegirTareasOrigen(d.origen);
+  else if (d.destino) ejecutarCopia(Object.keys(selMatriz||{}).filter(function(k){return selMatriz[k];}), d.destino, d.mover==='1');
+  else if (d.bib) elegirPuestoBiblio(d.bib);
+  else if (b.id==='btnBiblio') abrirBiblioteca();
+  else if (b.id==='btnSel'){ selMatriz = selMatriz ? null : {}; render(true); }
+  else if (b.id==='btnCopiarSel') destinoSeleccion(false);
+  else if (b.id==='btnMoverSel') destinoSeleccion(true);
+  else if (d.det!=null){ cur.det = cur.det===+d.det ? -1 : +d.det; render(true); }
+  else if (b.id==='btnVerResto'){ cur.verResto = !cur.verResto; render(true); }
+  else if (b.id==='btnExperto'){ cfg.experto = !experto(); save('iper_cfg', cfg); render(true); toast(experto()?'Modo experto activado: verás P, C, VEP, códigos y requisitos legales.':'Modo simple activado.'); }
+  else if (d.centro!=null && b.closest('#sheetPane')){ elegirCentro(d.centro); }
+  else if (b.id==='btnNuevoCentro' || b.id==='btnNuevoCentro2') abrirCentro(null);
+  else if (b.id==='btnEditarCentro') abrirCentro(cfg.centro);
   else if (b.id==='btnCola') analizarCola();
   else if (b.id==='btnSalir'){ guardarBorrador(); irA('inicio'); }
   else if (b.id==='btnSeparar'){ e.preventDefault(); separarTareas(); }
@@ -2654,7 +2910,7 @@ function init(){
     run('getConfig').then(function(c){
       aplicarConfig(c); listo();
       if (enlace) toast('✅ Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<5)) toast('El servidor es una versión anterior. Actualiza Code.gs.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<7)) toast('El servidor es una versión anterior. Actualiza Code.gs.', 8000);
       else if (!c.tieneClave && puede('admin')) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       render(true);
@@ -2671,7 +2927,7 @@ function init(){
 
 /* ======================= Modo demostración ======================= */
 var Demo = (function(){
-  var DB = {tareas:[], medidas:[], usuarios:[], firmas:[], hist:[], n:1};
+  var DB = {tareas:[], medidas:[], usuarios:[], firmas:[], hist:[], centros:[], n:1};
   function H(acc,id,det){ DB.hist.push({fecha:new Date().toISOString(), usuario:'Administrador (demo)', accion:acc, tareaId:id, detalle:det||''}); }
   var CAT = window.DEMO_CATALOGO || [
     {c:'A1',r:'Caídas al mismo nivel',fam:'SEG'},{c:'A2',r:'Caídas a distinto nivel',fam:'SEG'},{c:'I1',r:'Atropellos o golpes con vehículos',fam:'SEG'},
@@ -2683,7 +2939,15 @@ var Demo = (function(){
   return {
     getConfig: function(){ var listas={}; DB.tareas.forEach(function(t){ listas[t.centro]=listas[t.centro]||{procesos:[],puestos:[]};
       if(listas[t.centro].procesos.indexOf(t.proceso)<0)listas[t.centro].procesos.push(t.proceso); if(listas[t.centro].puestos.indexOf(t.puesto)<0)listas[t.centro].puestos.push(t.puesto); });
-      return {version:5, email:'', catalogo:CAT, tieneClave:true, listas:listas, avisosActivos:false, usuario:{nombre:'Administrador (demo)', correo:'', rol:'admin', rolTxt:'Administrador'}, logo:DB.logo||''}; },
+      return {version:6, email:'', catalogo:CAT, tieneClave:true, listas:listas, avisosActivos:false, usuario:{nombre:'Administrador (demo)', correo:'', rol:'admin', rolTxt:'Administrador'}, logo:DB.logo||'', centros:DB.centros.slice()}; },
+    guardarCentro: function(d){ if (!d.razonSocial||!d.nombre) throw new Error('Completa la razón social y el nombre.');
+      if (DB.centros.some(function(c){return c.nombre.toLowerCase()===d.nombre.toLowerCase() && c.id!==d.id;})) throw new Error('Ya existe un centro con ese nombre.');
+      var c = d.id ? DB.centros.filter(function(x){return x.id===d.id;})[0] : null;
+      if (!c){ c = {id:'c'+(DB.n++)}; DB.centros.push(c); }
+      if (c.nombre && c.nombre!==d.nombre) DB.tareas.concat(DB.medidas).forEach(function(x){ if (x.centro===c.nombre) x.centro = d.nombre; });
+      Object.assign(c, {razonSocial:d.razonSocial, rutEmpresa:d.rutEmpresa, nombre:d.nombre, direccion:d.direccion, ceal:d.ceal||'Sin evaluar', carpeta:'',
+        respEjecNombre:d.respEjecNombre||'', respEjecCargo:d.respEjecCargo||'', respSegNombre:d.respSegNombre||'', respSegCargo:d.respSegCargo||''});
+      return {id:c.id, centros:DB.centros.slice()}; },
     analizarTarea: function(t){
       var med = [{texto:'Charla de inducción',jerarquia:'Control administrativo'},{texto:'Chaleco reflectante y zapatos de seguridad',jerarquia:'EPP'}];
       var mk = function(pel,org,c,p,cc,prop,j,pr,cr,prot,leg){ return aplicarReglas({peligro:pel,origen:org,confirmado:org==='foto'?null:true,codigo:c,riesgo:nombre(c),fam:(CAT.filter(function(k){return k.c===c;})[0]||{}).fam||'SEG',
@@ -2743,13 +3007,34 @@ var Demo = (function(){
     listarUsuarios: function(){ return DB.usuarios.map(function(u){ return Object.assign({}, u, {rolTxt:ROLES_TXT[u.rol]}); }); },
     guardarUsuario: function(d){ if (!d.nombre) throw new Error('Indica el nombre.'); var u = d.id ? DB.usuarios.filter(function(x){return x.id===d.id;})[0] : null;
       if (!u){ u = {id:'u'+(DB.n++), codigo:Math.random().toString(36).slice(2)}; DB.usuarios.push(u); }
-      u.nombre=d.nombre; u.correo=d.correo; u.rol=d.rol; u.activo=d.activo!==false; if (d.nuevoCodigo) u.codigo=Math.random().toString(36).slice(2); return {id:u.id, codigo:u.codigo}; },
+      u.nombre=d.nombre; u.cargo=d.cargo; u.correo=d.correo; u.rol=d.rol; u.activo=d.activo!==false; if (d.nuevoCodigo) u.codigo=Math.random().toString(36).slice(2); return {id:u.id, codigo:u.codigo}; },
     guardarLogo: function(img){ DB.logo = img ? 'data:'+img.mime+';base64,'+img.data : ''; return {ok:true, logo:DB.logo}; },
     infoPuesto: function(c,p){ return {centro:c, puesto:p, firmas:DB.firmas.filter(function(f){return f.puesto===p;}),
       tareas:DB.tareas.filter(function(t){return t.puesto===p;}).map(function(t){ return {tarea:t.tarea, riesgos:t.d.riesgos.map(function(r){
         return {peligro:r.peligro, riesgo:r.riesgo, codigo:r.codigo, consecuencia:r.c>=4?'puede causar lesiones graves, incapacidad permanente o muerte':r.c>=2?'puede causar lesiones con incapacidad temporal':'puede causar lesiones leves',
           medidas:(r.medidasActuales||[]).map(function(m){return m.replace(/^[^:]+:\s*/,'');}).concat(r.medidaPropuesta?[r.medidaPropuesta+' (en implementación)']:[])}; })}; })}; },
     firmarInformacion: function(d){ if (!rutValido(d.rut)) throw new Error('El RUT no es válido.'); DB.firmas.push({fecha:new Date().toISOString(), puesto:d.puesto, trabajador:d.trabajador, rut:d.rut, pdf:'#'}); return {url:'#'}; },
+    copiarTareas: function(ids, destino, mover){
+      ids.forEach(function(id){ var t = DB.tareas.filter(function(x){return x.id===id;})[0]; if (!t) return;
+        if (mover){ t.centro = destino; DB.medidas.forEach(function(m){ if (m.tareaId===id) m.centro = destino; }); }
+        else { var n = JSON.parse(JSON.stringify(t)); n.id = 'd'+(DB.n++); n.centro = destino; n.estado = 'Borrador'; DB.tareas.push(n);
+          DB.medidas.filter(function(m){return m.tareaId===id;}).forEach(function(m){ var k = Object.assign({}, m, {id:'m'+(DB.n++), tareaId:n.id, centro:destino, estado:'Pendiente', evidencia:''}); DB.medidas.push(k); }); } });
+      return {n:ids.length}; },
+    listarBiblioteca: function(){
+      var val = {}; DB.tareas.filter(function(t){return t.estado==='Validada';}).forEach(function(t){ (val[t.puesto] = val[t.puesto] || {puesto:t.puesto, proceso:t.proceso, centros:[t.centro], tareas:[]}).tareas.push({id:t.id, tarea:t.tarea, medidas:t.d.medidasTexto||'', riesgos:t.d.riesgos.length}); });
+      return {validadas:Object.keys(val).map(function(k){return val[k];}), tipo:[
+        {puesto:'Bodeguero/a', proceso:'Almacenamiento y despacho', tareas:[{tarea:'Recepción de camiones y descarga manual de sacos y cajas.', medidas:'Charla de inducción, zapatos de seguridad, guantes'},{tarea:'Almacenamiento de productos en racks a distintas alturas.', medidas:'Escalera de 3 peldaños'},{tarea:'Preparación de pedidos con transpaleta manual.', medidas:''}]},
+        {puesto:'Guardia de seguridad', proceso:'Control de acceso y vigilancia', tareas:[{tarea:'Control de ingreso de vehículos con barrera manual.', medidas:'Chaleco reflectante'},{tarea:'Rondas perimetrales a pie, incluido turno de noche.', medidas:'Linterna, radio'}]},
+        {puesto:'Administrativo/a', proceso:'Administración', tareas:[{tarea:'Trabajo con computador la mayor parte de la jornada.', medidas:'Silla regulable, pausas activas'},{tarea:'Atención de público y llamadas.', medidas:''}]}]}; },
+    cumplimiento: function(c){
+      var ts = DB.tareas.filter(centro(c)), val = ts.filter(function(t){return t.estado==='Validada';}).length, ms = this.listarMedidas(c);
+      var it = [{titulo:'Matriz de riesgos evaluada y validada', ok:ts.length>0&&val===ts.length, detalle:val+' de '+ts.length+' tareas validadas', accion:'matriz'},
+        {titulo:'Evaluación psicosocial (CEAL-SM)', ok:false, detalle:'Sin evaluar', accion:'centro'},
+        {titulo:'Programa de trabajo: medidas al día', ok:ms.length>0&&!ms.some(function(m){return m.vencida;}), detalle:ms.filter(function(m){return m.estado==='Verificada';}).length+' de '+ms.length+' verificadas', accion:'medidas'},
+        {titulo:'Información de riesgos firmada (DS 44)', ok:false, detalle:DB.firmas.length+' firma(s)', accion:'firmas'},
+        {titulo:'Guía técnica MMC / MMP', ok:!!DB.prot, detalle:DB.prot?'Gestionado':'Evaluar la manipulación de carga con la guía técnica.', accion:'protocolo', protocolo:'Guía técnica MMC / MMP'}];
+      var ok = it.filter(function(x){return x.ok;}).length; return {pct:Math.round(ok/it.length*100), ok:ok, total:it.length, items:it}; },
+    marcarProtocolo: function(c,n,h){ DB.prot = h; return {ok:true}; },
     activarAvisos: function(){ return {ok:true, mensaje:'(Demo) En la versión real se activan los avisos diarios.'}; }
   };
 })();

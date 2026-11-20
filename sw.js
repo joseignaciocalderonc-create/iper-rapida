@@ -1,6 +1,6 @@
 /* Service worker de IPER Rápida: guarda la app para abrirla rápido y sin conexión.
    Las llamadas al servidor (IA, Excel) nunca se guardan en caché. */
-var CACHE = 'iper-rapida-v5';
+var CACHE = 'iper-rapida-v7';
 var ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {
