@@ -1,6 +1,6 @@
 {
-  "name": "IPER Rápida - Matriz de riesgos",
-  "short_name": "IPER Rápida",
+  "name": "Miper PrevFront",
+  "short_name": "Miper PrevFront",
   "description": "Matriz IPER de riesgos laborales asistida por IA, con análisis de fotos y envío del Excel por correo.",
   "id": "./",
   "start_url": "./",
@@ -8,8 +8,8 @@
   "display": "standalone",
   "orientation": "portrait",
   "lang": "es-CL",
-  "background_color": "#0A1828",
-  "theme_color": "#0A1828",
+  "background_color": "#16181B",
+  "theme_color": "#16181B",
   "categories": ["business", "productivity"],
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
