@@ -1534,7 +1534,7 @@ function qrSvg(texto, px){
 }
 
 /* ======================= Constantes ======================= */
-var VERSION_APP = '8.0';
+var VERSION_APP = '8.1';
 /* Íconos de línea (24×24) */
 var ICO = {
   atras:'<path d="M15 18l-6-6 6-6"/>', chev:'<path d="M9 6l6 6-6 6"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
@@ -1675,7 +1675,10 @@ function abrirCentro(nombre, seccion){
     '<div class="row"><div>'+fCampo('cEjN', 'Ejecución: nombre', x.respEjecNombre, 'Persona que debe implementar las medidas, normalmente quien representa a la empresa en el centro. Si lo dejas vacío se usa "Representante Legal".')+'</div>'+
     '<div>'+fCampo('cEjC', 'Cargo', x.respEjecCargo, '')+'</div></div>'+
     '<div class="row"><div>'+fCampo('cSgN', 'Seguimiento: nombre', x.respSegNombre, 'Persona que revisa que las medidas se cumplan en plazo, normalmente el asesor en prevención.')+'</div>'+
-    '<div>'+fCampo('cSgC', 'Cargo', x.respSegCargo, '')+'</div></div>',
+    '<div>'+fCampo('cSgC', 'Cargo', x.respSegCargo, '')+'</div></div>'+
+    lab('Otras personas que ejecutan medidas', 'Prevención de riesgos, supervisores, jefaturas de área o de división, mantención. Al revisar cada riesgo o en Medidas eliges quién ejecuta cada medida; si no eliges, se usa el responsable de ejecución de arriba.')+
+    '<div id="cRespList"></div><div class="row" style="margin-top:8px"><div><input type="text" id="cRpN" placeholder="Nombre" autocomplete="off"></div><div><input type="text" id="cRpC" placeholder="Cargo" autocomplete="off"></div></div>'+
+    '<button class="btn sec" style="margin-top:8px" id="cRpAdd" type="button">'+ico('mas')+'Agregar persona</button>',
     n([x.respEjecNombre,x.respEjecCargo,x.respSegNombre,x.respSegCargo]), 4, abierta==='resp', 'resp');
   h += fSec('Logo de la empresa',
     '<p class="muted" style="margin:12px 0 10px">Se usa en el Excel y en los PDF de este centro. Si no subes uno, se usa el logo general de la app.</p>'+
@@ -1687,6 +1690,13 @@ function abrirCentro(nombre, seccion){
   h += '<p class="muted">'+(c?'Si cambias el nombre del centro, sus tareas, medidas y firmas pasan al nombre nuevo.':'Se creará la carpeta Razón social / Centro en Drive, con subcarpetas para matrices, evidencias y firmas.')+'</p>'+
     '<button class="btn" id="cOk">'+(c?'Guardar ficha':'Crear centro')+'</button>';
   abrirSheet(h);
+  var resp = (x.responsables||[]).slice();
+  var pintarResp = function(){ $('cRespList').innerHTML = resp.length ? '<div class="list" style="margin:0">'+resp.map(function(p,i){
+      return '<div class="li"><span class="tx"><b>'+esc(p.nombre)+'</b><span>'+esc(p.cargo||'Sin cargo')+'</span></span><button class="x" type="button" data-qrp="'+i+'" aria-label="Quitar">×</button></div>'; }).join('')+'</div>' : '<p class="muted" style="margin:0">Aún no hay otras personas.</p>';
+    $('cRespList').querySelectorAll('[data-qrp]').forEach(function(b){ b.onclick = function(){ resp.splice(+b.dataset.qrp,1); pintarResp(); }; }); };
+  pintarResp();
+  $('cRpAdd').onclick = function(){ var nn = $('cRpN').value.trim(), cc = $('cRpC').value.trim(); if (!nn) return toast('Escribe el nombre.'); if (!cc) return toast('Escribe el cargo.');
+    resp.push({nombre:nn, cargo:cc}); $('cRpN').value = ''; $('cRpC').value = ''; pintarResp(); };
   if (seccion){ var sx = document.querySelector('[data-sec="'+seccion+'"]'); if (sx) setTimeout(function(){ sx.scrollIntoView({block:'start'}); }, 60); }
   $('cLogo').onchange = function(){
     var file = this.files[0]; if (!file) return;
@@ -1703,6 +1713,7 @@ function abrirCentro(nombre, seccion){
         nHombres:v('fH'), nMujeres:v('fM'), nOtros:v('fO'), riohs:$('fRiohs').value, comite:$('fComite').value, depto:$('fDepto').value,
         asesorNombre:v('fAsesor'), asesorRegistro:v('fRegistro')}};
     if (logoNuevo!==undefined) d.logo = logoNuevo;
+    d.responsables = resp;
     var abrirSec = function(k){ var s0 = document.querySelector('[data-sec="'+k+'"]'); if (s0){ s0.open = true; s0.scrollIntoView({block:'start'}); } };
     if (!d.razonSocial){ abrirSec('empresa'); return toast('Escribe la razón social.'); }
     if (!d.nombre){ abrirSec('centro'); return toast('Escribe el nombre del centro.'); }
@@ -2260,7 +2271,7 @@ function riskCardSimple(r,i){
     (r.fam==='PSI'?'':'<span class="muted">→ con la medida</span><span class="vep '+nr+'" style="min-width:0;padding:4px 10px">'+nr+'</span>')+'</div>'+
     (r.justificacion?'<div class="just" style="margin-top:0">'+esc(r.justificacion)+'</div>':'')+
     '<label>Peligro</label><input type="text" data-rf="peligro" data-i="'+i+'" value="'+esc(r.peligro)+'">'+
-    '<label>Qué hay que hacer (medida propuesta)</label><textarea data-rf="medidaPropuesta" data-i="'+i+'" style="min-height:60px">'+esc(r.medidaPropuesta)+'</textarea>'+
+    '<label>Qué hay que hacer (medida propuesta)</label><textarea data-rf="medidaPropuesta" data-i="'+i+'" style="min-height:60px">'+esc(r.medidaPropuesta)+'</textarea>'+filaResponsable(r,i)+
     (r.medidaEspecial?'<label>Para personas especialmente sensibles</label><textarea data-rf="medidaEspecial" data-i="'+i+'" style="min-height:50px">'+esc(r.medidaEspecial)+'</textarea>':'')+
     (r.protocolos&&r.protocolos.length?'<div style="margin-top:8px">'+r.protocolos.map(function(p){return '<span class="prot">Requiere: '+esc(p)+'</span>';}).join('')+'</div>':'')+
     '<div style="height:8px"></div><button class="btn ghost" style="width:100%" data-det="'+i+'">'+(cur.det===i?'Ocultar detalle técnico ▴':'Ajustar nivel o ver detalle técnico ▾')+'</button>';
@@ -2291,6 +2302,7 @@ function riskCardExperto(r,i){
     (r.medidasActuales&&r.medidasActuales.length?'<ul>'+r.medidasActuales.map(function(m){return '<li>'+esc(m)+'</li>';}).join('')+'</ul>':'<div class="muted">Ninguna</div>')+
     '<label>Medida propuesta</label><textarea data-rf="medidaPropuesta" data-i="'+i+'" style="min-height:60px">'+esc(r.medidaPropuesta)+'</textarea>'+
     '<label>Jerarquía de la medida</label><select data-rf="jerarquia" data-i="'+i+'">'+JER.map(function(j){return '<option'+(j===r.jerarquia?' selected':'')+'>'+j+'</option>';}).join('')+'</select>'+
+    (experto()?filaResponsable(r,i):'')+
     (r.fam==='PSI'?'':'<div class="pc"><div><label>P residual</label>'+seg('pRes',r.pRes,i)+'</div><div><label>C residual</label>'+seg('cRes',r.cRes,i)+'</div>'+vepBox(r.pRes,r.cRes)+'</div>')+
     (r.reglas&&r.reglas.length?'<div class="rules">'+r.reglas.map(esc).join('<br>')+'</div>':'')+
     (r.medidaEspecial?'<label>Medida especial (personas sensibles)</label><textarea data-rf="medidaEspecial" data-i="'+i+'" style="min-height:50px">'+esc(r.medidaEspecial)+'</textarea>':'')+
@@ -2568,8 +2580,8 @@ function renderMatriz(){
   if (!L) return [h+cargando(),''];
   if (!L.length) return [h+'<div class="empty">Aún no hay tareas en este centro.'+(puede('evaluador')?'<br>Crea una con <b>Nueva evaluación</b> en el Resumen.':'')+'</div>',''];
   var puestos = Array.from(new Set(L.map(function(t){return t.puesto;})));
-  h += '<div class="row" style="margin-bottom:12px"><button class="btn sec" id="btnFirmas">'+ico('firma')+'Firmas</button>'+
-    (puede('evaluador')&&otrosCentros().length?'<button class="btn sec" id="btnSel">'+(selMatriz?'Cancelar selección':ico('copiar')+'Copiar o mover')+'</button>':'')+'</div>';
+  h += tarjetaAutorizacion(L);
+  if (puede('evaluador')&&otrosCentros().length) h += '<button class="btn ghost" style="width:100%;margin:-4px 0 8px" id="btnSel">'+(selMatriz?'Cancelar selección':ico('copiar')+'Copiar o mover tareas a otro centro')+'</button>';
   if (L.length>4) h += '<input type="text" class="search" id="buscar" placeholder="Buscar proceso, puesto o tarea" value="'+esc(filtroMatriz)+'">';
   var q = filtroMatriz.toLowerCase(), grupoAnt = '';
   var vis = L.filter(function(t){ return !q || (t.proceso+' '+t.puesto+' '+t.tarea).toLowerCase().indexOf(q)>=0; });
@@ -2621,7 +2633,9 @@ function renderMedidas(){
       '<div class="rname">'+esc(m.medida)+'</div>'+
       '<div style="margin:6px 0"><span class="tag">'+esc(m.jerarquia)+'</span><span class="st st-'+m.estado+'">'+m.estado+'</span> '+
       (m.vencida?'<span class="st st-alerta">Vencida '+fecha(m.plazo)+'</span>':'<span class="muted">Plazo '+fecha(m.plazo)+'</span>')+'</div>'+
-      '<div class="muted">Responsable: '+esc(m.responsable||'Sin asignar')+'<br>Verificador: '+esc(m.verificador)+'</div>'+
+      '<div class="lbl" style="margin:8px 0 4px"><span class="muted">Ejecuta: <b style="color:var(--ink)">'+esc(nc(m.responsable, m.responsableCargo)||'Sin asignar')+'</b></span>'+
+        (puede('evaluador')?'<button class="chip" data-mresp="'+m.id+'">Cambiar</button>':'')+'</div>'+
+      '<div class="muted">Verificador: '+esc(m.verificador)+'</div>'+
       (m.evidencia?'<div style="margin-top:6px"><a href="'+esc(m.evidencia)+'" target="_blank" rel="noopener">Ver evidencia</a></div>':'')+
       (puede('evaluador')?'<div class="acts">'+
         (m.estado==='Pendiente'?'<button class="chip" data-mest="Implementada" data-id="'+m.id+'">Marcar implementada</button>':'')+
@@ -2723,7 +2737,7 @@ function abrirPrivacidad(primeraVez){
     '<p><b>Dónde se guardan.</b> Las evaluaciones, medidas, evidencias y firmas se guardan en la cuenta de Google de la empresa que administra la app (Google Sheets y Google Drive). Los borradores quedan en este teléfono hasta que los guardas.</p>'+
     '<p><b>Inteligencia artificial.</b> Las descripciones y fotos que envías a analizar se procesan con Google Gemini. En su nivel gratuito, Google puede usar esa información para mejorar sus servicios.</p>'+
     '<p><b>Fotos.</b> Evita fotografiar rostros u otros datos que identifiquen a personas. Si es necesario, pide su consentimiento.</p>'+
-    '<p><b>Firmas.</b> La firma en pantalla, el nombre y el RUT del trabajador/a se guardan en un PDF como registro de entrega de la información de riesgos.</p>'+
+    '<p><b>Firma.</b> Solo firma quien autoriza la matriz. Su firma en pantalla, nombre, cargo y RUT (si lo indica) se guardan en la carpeta del centro y aparecen en la matriz.</p>'+
     '<p><b>Responsabilidad.</b> La matriz es un borrador asistido por IA. Debe ser revisada y validada por el/la encargado/a de prevención, con participación de las personas trabajadoras (DS 44).</p></div>'+
     (primeraVez?'<div style="height:10px"></div><button class="btn" id="btnAceptoPriv">Entiendo y acepto</button>':''));
   if (primeraVez) $('btnAceptoPriv').onclick = function(){ cfg.privacidad = true; save('iper_cfg', cfg); cerrarSheet(); };
@@ -2818,40 +2832,55 @@ function compartirAcceso(u){
   };
   $('shCopy').onclick = function(){ (navigator.clipboard?navigator.clipboard.writeText(link):Promise.reject()).then(function(){ toast('Enlace copiado.'); }, function(){ toast('No se pudo copiar; mantén presionado el enlace.'); }); };
 }
-/* ======================= Firma de la información de riesgos ======================= */
-function elegirPuestoFirma(){
-  var puestos = Array.from(new Set((datos.tareas||[]).map(function(t){return t.puesto;})));
-  abrirSheet(cabecera('Firmas por puesto')+'<p class="muted">El trabajador/a lee los riesgos de su puesto y firma en la pantalla. Se genera un PDF firmado en Drive.</p>'+
-    '<div class="list">'+puestos.map(function(p){ return '<button class="li" data-firmar="'+esc(p)+'"><span class="tx"><b>'+esc(p)+'</b></span><span class="chev">'+ico('chev')+'</span></button>'; }).join('')+'</div>');
+/* ======================= Autorización de la matriz (firma de quien autoriza) ======================= */
+function tarjetaAutorizacion(L){
+  var ci = centroInfo(cfg.centro), a = ci && ci.autorizacion;
+  var faltan = (L||[]).filter(function(t){ return t.estado!=='Validada'; }).length;
+  var txt;
+  if (a && a.vigente) txt = '<div class="note bien"><b>Matriz autorizada</b> por '+esc(nc(a.nombre, a.cargo))+' el '+fecha(a.fecha)+'.</div>';
+  else if (a) txt = '<div class="note aviso"><b>Debe autorizarse de nuevo.</b> '+esc(a.motivo||'La matriz cambió')+' después de la firma del '+fecha(a.fecha)+'.</div>';
+  else txt = '<div class="note"><b>Sin autorizar.</b> '+(faltan?'Cuando todas las tareas estén validadas, quien autoriza firma aquí. Faltan '+faltan+' de '+L.length+'.':'Todas las tareas están validadas: falta la firma de quien autoriza.')+'</div>';
+  var btn = puede('validador') && !(a && a.vigente) ? '<div style="height:8px"></div><button class="btn'+(faltan?' sec':'')+'" id="btnAutorizar">'+ico('firma')+'Autorizar y firmar la matriz</button>' : '';
+  return '<div style="margin-bottom:14px">'+txt+btn+'</div>';
 }
-function abrirFirma(puesto){
-  busy(true,'Cargando información del puesto…');
-  run('infoPuesto', cfg.centro, puesto).then(function(I){
-    busy(false);
-    var cont = I.tareas.map(function(t){
-      return '<div class="tt">'+esc(t.tarea)+'</div>'+t.riesgos.map(function(r){
-        return '<div class="rk"><b>'+esc(r.peligro)+'</b> → '+esc(r.riesgo)+'<br><span class="muted">'+esc(r.consecuencia)+'</span>'+
-          '<div style="margin-top:4px">'+r.medidas.map(function(m){return '• '+esc(m);}).join('<br>')+'</div></div>'; }).join('');
-    }).join('');
-    abrirSheet(cabecera('Información de riesgos')+
-      '<p class="muted" style="margin-top:0">'+esc(etiquetaCentro(cfg.centro))+'<br><b>Puesto: '+esc(puesto)+'</b></p>'+
-      (I.firmas.length?'<details class="card"><summary><b>'+I.firmas.length+' firma(s) registrada(s)</b></summary>'+I.firmas.map(function(f){
-        return '<div style="margin:6px 0">'+esc(f.trabajador)+' · '+esc(f.rut)+' · '+fecha(f.fecha)+' <a href="'+esc(f.pdf)+'" target="_blank">PDF</a></div>'; }).join('')+'</details>':'')+
-      '<div class="doc card">'+cont+'</div>'+
-      (puede('evaluador')?
-      '<h3>Firma del trabajador/a</h3>'+
-      '<label>Nombre completo</label><input type="text" id="fNom" autocomplete="off">'+
-      '<label>RUT</label><input type="text" id="fRut" autocomplete="off" inputmode="text"><div id="rutMsg" class="muted" style="margin-top:4px"></div>'+
-      '<label style="display:flex;justify-content:space-between">Firma <button class="mic" id="fLimpiar">Limpiar</button></label>'+
-      '<canvas id="pad" class="pad"></canvas>'+
-      '<label class="chk" style="margin-top:12px"><input type="checkbox" id="fOk"><span>Declaro haber sido informado/a de los riesgos de mi puesto, las medidas preventivas y los métodos de trabajo correctos.</span></label>'+
-      '<div style="height:12px"></div><button class="btn" id="fFirmar">Firmar y guardar PDF</button>':''));
-    if (puede('evaluador')) prepararFirma(puesto);
-  }).catch(function(e){ busy(false); toast(e.message); });
+function abrirAutorizacion(){
+  var L = datos.tareas || [], faltan = L.filter(function(t){ return t.estado!=='Validada'; }).length;
+  if (!L.length) return toast('Primero evalúa y valida las tareas del centro.');
+  if (faltan) return toast('Antes de autorizar, valida todas las tareas de la matriz (faltan '+faltan+').', 6000);
+  var u = SRV.usuario || {}, ci = centroInfo(cfg.centro);
+  abrirSheet(cabecera('Autorizar la matriz')+
+    '<p class="muted" style="margin-top:0">'+esc(ci?ci.razonSocial:'')+', '+esc(cfg.centro)+'. '+L.length+(L.length===1?' tarea validada.':' tareas validadas.')+
+    ' La firma queda en el pie de la matriz (Excel y PDF) y en la carpeta del centro.</p>'+
+    lab('Nombre de quien autoriza', 'Normalmente el representante legal, el gerente o la jefatura máxima del centro. Puede ser distinto de quien elaboró la matriz.')+
+      '<input type="text" id="auNom" autocomplete="off" value="'+esc(u.esAdminPrincipal ? (cfg.aprobador||'') : (u.nombre||''))+'">'+
+    lab('Cargo')+'<input type="text" id="auCar" autocomplete="off" value="'+esc(u.esAdminPrincipal ? (cfg.aprobadorCargo||'') : (u.cargo||''))+'">'+
+    lab('RUT <span class="muted" style="font-weight:400">(opcional)</span>')+'<input type="text" id="auRut" autocomplete="off"><div id="rutMsg" class="muted" style="margin-top:4px"></div>'+
+    '<label class="lbl"><span>Firma</span><button class="mic" id="fLimpiar" type="button">Limpiar</button></label><canvas id="pad" class="pad"></canvas>'+
+    '<label class="chk" style="margin-top:12px"><input type="checkbox" id="auOk"><span>Autorizo la Matriz de Identificación de Peligros y Evaluación de Riesgos de este centro y su programa de trabajo preventivo.</span></label>'+
+    '<div style="height:10px"></div><button class="btn" id="auFirmar">Firmar y autorizar</button>');
+  var pad = padFirma($('pad'), $('fLimpiar'));
+  $('auRut').addEventListener('input', function(){ var v = this.value;
+    $('rutMsg').innerHTML = v.replace(/[^0-9kK]/g,'').length<7 ? '' : rutValido(v) ? '<span class="ok">RUT válido: '+formatoRut(v)+'</span>' : '<span class="bad">RUT no válido</span>'; });
+  $('auFirmar').onclick = function(){
+    var nom = $('auNom').value.trim(), car = $('auCar').value.trim(), rut = $('auRut').value.trim();
+    if (!nom) return toast('Escribe el nombre de quien autoriza.');
+    if (!car) return toast('Escribe el cargo de quien autoriza.');
+    if (rut && !rutValido(rut)) return toast('Revisa el RUT.');
+    if (pad.vacia()) return toast('Falta la firma.');
+    if (!$('auOk').checked) return toast('Marca la declaración para continuar.');
+    busy(true,'Registrando la autorización…');
+    run('autorizarMatriz', {centro:cfg.centro, nombre:nom, cargo:car, rut:rut?formatoRut(rut):'', firma:pad.png()}).then(function(r){
+      busy(false); SRV.centros = r.centros; aplicarConfig({}); datos.cumpl = null;
+      abrirSheet('<div style="text-align:center;padding:10px 4px"><div class="okbig">'+ico('ok')+'</div><h2>Matriz autorizada</h2>'+
+        '<p class="muted">'+esc(nc(nom, car))+'<br>'+fecha(new Date())+'</p><p class="muted">Al enviar la matriz, la firma aparece en el pie de la hoja IPER.</p>'+
+        '<button class="btn" id="btnEnviar">'+ico('correo')+'Enviar matriz ahora</button><div style="height:8px"></div><button class="btn ghost" style="width:100%" onclick="cerrarSheet()">Listo</button></div>');
+      render(true);
+    }).catch(function(e){ busy(false); toast(e.message, 6000); });
+  };
 }
-function prepararFirma(puesto){
-  var cv = $('pad'), ctx = cv.getContext('2d'), dibujado = false, dib = false, last = null;
-  var ratio = window.devicePixelRatio || 1;
+/** Pad de firma en pantalla. */
+function padFirma(cv, btnLimpiar){
+  var ctx = cv.getContext('2d'), dibujado = false, dib = false, last = null, ratio = window.devicePixelRatio || 1;
   cv.width = cv.clientWidth * ratio; cv.height = cv.clientHeight * ratio;
   ctx.scale(ratio, ratio); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,cv.width,cv.height);
   ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111';
@@ -2859,27 +2888,53 @@ function prepararFirma(puesto){
   cv.addEventListener('pointerdown', function(e){ dib = true; last = pos(e); cv.setPointerCapture(e.pointerId); e.preventDefault(); });
   cv.addEventListener('pointermove', function(e){ if (!dib) return; var p = pos(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke(); last = p; dibujado = true; e.preventDefault(); });
   ['pointerup','pointercancel','pointerleave'].forEach(function(ev){ cv.addEventListener(ev, function(){ dib = false; }); });
-  $('fLimpiar').onclick = function(e){ e.preventDefault(); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,cv.width,cv.height); dibujado = false; };
-  $('fRut').addEventListener('input', function(){
-    var v = this.value; $('rutMsg').innerHTML = v.replace(/[^0-9kK]/g,'').length<7 ? '' : rutValido(v) ? '<span class="ok">RUT válido: '+formatoRut(v)+'</span>' : '<span class="bad">RUT no válido</span>';
-  });
-  $('fFirmar').onclick = function(){
-    var nom = $('fNom').value.trim(), rut = $('fRut').value;
-    if (!nom) return toast('Escribe el nombre del trabajador/a.');
-    if (!rutValido(rut)) return toast('Revisa el RUT.');
-    if (!dibujado) return toast('Falta la firma.');
-    if (!$('fOk').checked) return toast('Marca la declaración para continuar.');
-    var png = cv.toDataURL('image/png').split(',')[1];
-    busy(true,'Generando PDF firmado…');
-    run('firmarInformacion', {centro:cfg.centro, empresa:cfg.empresa, puesto:puesto, trabajador:nom, rut:formatoRut(rut), firma:png}).then(function(r){
-      busy(false);
-      abrirSheet('<div style="text-align:center;padding:10px 4px"><div class="okbig">'+ico('ok')+'</div><h2>Firma registrada</h2>'+
-        '<p class="muted">'+esc(nom)+' · '+esc(formatoRut(rut))+'<br>'+esc(puesto)+'</p>'+
-        (r.url&&r.url!=='#'?'<p><a href="'+esc(r.url)+'" target="_blank">Ver PDF firmado</a></p>':'')+
-        '<button class="btn" data-firmar="'+esc(puesto)+'">Firmar otro trabajador/a</button><div style="height:8px"></div>'+
-        '<button class="btn ghost" style="width:100%" onclick="cerrarSheet()">Listo</button></div>');
+  btnLimpiar.onclick = function(e){ e.preventDefault(); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,cv.width,cv.height); dibujado = false; };
+  return { vacia:function(){ return !dibujado; }, png:function(){ return cv.toDataURL('image/png').split(',')[1]; } };
+}
+
+/* ======================= Responsables de ejecución ======================= */
+/** Personas del centro que pueden ejecutar medidas: responsable por defecto, seguimiento, asesor y la lista de la ficha. */
+function personasCentro(nombre){
+  var c = centroInfo(nombre||cfg.centro) || {}, f = c.ficha || {}, out = [], vistos = {};
+  var add = function(n, cg, nota){ n = String(n||'').trim(); cg = String(cg||'').trim(); var k = (n+'|'+cg).toLowerCase(); if (!n || vistos[k]) return; vistos[k] = 1; out.push({nombre:n, cargo:cg, nota:nota||''}); };
+  add(c.respEjecNombre, c.respEjecCargo, 'Por defecto');
+  (c.responsables||[]).forEach(function(x){ add(x.nombre, x.cargo); });
+  add(f.asesorNombre, 'Asesor/a en prevención de riesgos');
+  add(c.respSegNombre, c.respSegCargo);
+  return out;
+}
+function respPorDefecto(){ var c = centroInfo(cfg.centro) || {}; return {nombre:c.respEjecNombre||'', cargo:c.respEjecCargo||'Representante Legal'}; }
+/** Hoja para elegir quién ejecuta una medida. onElegir({nombre, cargo, agregar}) */
+function elegirResponsable(actual, onElegir){
+  var L = personasCentro(), act = String((actual&&actual.nombre)||'').toLowerCase();
+  abrirSheet(cabecera('¿Quién ejecuta la medida?')+
+    '<p class="muted" style="margin-top:0">Puede ser prevención de riesgos o quien corresponda: supervisor, jefatura de área o de división, mantención, recursos humanos.</p>'+
+    (L.length ? '<div class="list">'+L.map(function(p,i){ var on = p.nombre.toLowerCase()===act;
+      return '<button class="li" data-rp="'+i+'"><span class="tx"><b>'+esc(p.nombre)+'</b><span>'+esc(p.cargo||'Sin cargo')+(p.nota?', '+p.nota.toLowerCase():'')+'</span></span>'+(on?'<span class="st st-Verificada">Actual</span>':'<span class="chev">'+ico('chev')+'</span>')+'</button>'; }).join('')+'</div>' :
+      '<p class="muted">Aún no hay personas en la ficha de este centro.</p>')+
+    '<details class="sec"'+(L.length?'':' open')+'><summary>'+ico('mas')+'Otra persona</summary><div class="cu">'+
+      lab('Nombre')+'<input type="text" id="rpNom" autocomplete="off">'+lab('Cargo', 'Cargo o jerarquía de quien ejecuta: supervisor, jefe de división, encargado de mantención, prevención de riesgos.')+'<input type="text" id="rpCar" autocomplete="off">'+
+      '<label class="chk"><input type="checkbox" id="rpAdd" checked><span>Guardarla en la ficha del centro para usarla en otras medidas</span></label>'+
+      '<button class="btn" id="rpOk">Usar esta persona</button></div></details>');
+  $('sheetPane').querySelectorAll('[data-rp]').forEach(function(b){ b.onclick = function(){ var p = L[+b.dataset.rp]; cerrarSheet(); onElegir({nombre:p.nombre, cargo:p.cargo, agregar:false}); }; });
+  $('rpOk').onclick = function(){ var n = $('rpNom').value.trim(), cg = $('rpCar').value.trim();
+    if (!n) return toast('Escribe el nombre.'); if (!cg) return toast('Escribe el cargo.');
+    cerrarSheet(); onElegir({nombre:n, cargo:cg, agregar:$('rpAdd').checked}); };
+}
+function filaResponsable(r, i){
+  var p = r.respNombre ? {nombre:r.respNombre, cargo:r.respCargo} : respPorDefecto();
+  return '<div class="lbl" style="margin-top:12px"><span class="muted" style="color:#3F4D51;font-weight:700">Responsable de ejecutar</span>'+
+    '<button class="chip" data-resp="'+i+'">'+(p.nombre||p.cargo ? esc(nc(p.nombre, p.cargo)) : 'Elegir')+'</button></div>';
+}
+function cambiarResponsableMedida(id){
+  var m = (datos.medidas||[]).filter(function(x){return x.id===id;})[0]; if (!m) return;
+  elegirResponsable({nombre:m.responsable}, function(p){
+    busy(true,'Guardando responsable…');
+    run('asignarResponsable', id, p.nombre, p.cargo, p.agregar).then(function(r){
+      busy(false); if (r.centros){ SRV.centros = r.centros; aplicarConfig({}); }
+      m.responsable = p.nombre; m.responsableCargo = p.cargo; render(true); toast('Responsable: '+nc(p.nombre, p.cargo)+'.');
     }).catch(function(e){ busy(false); toast(e.message); });
-  };
+  });
 }
 
 /* ======================= Fotos ======================= */
@@ -2909,14 +2964,14 @@ function procesarFoto(file, max, png){
 /* ======================= Acciones de matriz y medidas ======================= */
 function cambiarEstado(id, estado){
   busy(true, estado==='Validada'?'Validando…':'Actualizando…');
-  run('cambiarEstado', id, estado, {nombre:cfg.aprobador, cargo:cfg.aprobadorCargo}).then(function(){ busy(false); toast(estado==='Validada'?'Validada. Próxima revisión en 1 año.':'Marcada como revisada.'); cargar('tareas'); })
+  run('cambiarEstado', id, estado, {nombre:cfg.aprobador, cargo:cfg.aprobadorCargo}).then(function(){ busy(false); refrescarConfig(); toast(estado==='Validada'?'Validada. Próxima revisión en 1 año.':'Marcada como revisada.'); cargar('tareas'); })
     .catch(function(e){ busy(false); toast(e.message); });
 }
 function eliminarTarea(id){
   var antes = datos.tareas.slice();
   datos.tareas = datos.tareas.filter(function(t){return t.id!==id;}); render(true);
   conDeshacer('Tarea eliminada.', function(){ datos.tareas = antes; render(true); },
-    function(){ run('eliminarTarea', id).then(function(){ datos.panel = null; }).catch(function(e){ toast(e.message); cargar('tareas'); }); });
+    function(){ run('eliminarTarea', id).then(function(){ datos.panel = null; refrescarConfig(); }).catch(function(e){ toast(e.message); cargar('tareas'); }); });
 }
 function actualizarMedida(id, estado, foto){
   busy(true, estado==='Verificada'?'Subiendo evidencia…':'Actualizando…');
@@ -2988,7 +3043,7 @@ function accionCumplimiento(i){
   var it = datos.cumpl.items[i];
   if (it.accion==='matriz') irA('matriz');
   else if (it.accion==='medidas'){ filtroMed = /vencida/.test(it.detalle) ? 'vencidas' : 'abiertas'; irA('medidas'); }
-  else if (it.accion==='firmas'){ irA('matriz'); setTimeout(function(){ if (datos.tareas) elegirPuestoFirma(); else toast('Abre "Firmas por puesto" en la Matriz.'); }, 1200); }
+  else if (it.accion==='autorizar'){ irA('matriz'); if (puede('validador')) setTimeout(function(){ if (datos.tareas) abrirAutorizacion(); }, 1200); else toast('Pide a quien valida la matriz que la autorice y firme.'); }
   else if (it.accion==='centro'){
     var sec = it.id==='ficha' ? (fichaFaltantes(centroInfo(cfg.centro)).indexOf('número de trabajadores')>=0 && fichaFaltantes(centroInfo(cfg.centro)).length===1 ? 'personas' : 'empresa') : 'org';
     if (puede('validador')) abrirCentro(cfg.centro, sec); else toast('Pide a quien administra el centro que complete su ficha.'); }
@@ -3185,7 +3240,11 @@ document.addEventListener('click', function(e){
   else if (d.fmed){ filtroMed = d.fmed; render(true); }
   else if (d.mest){ actualizarMedida(d.id, d.mest); }
   else if (d.verif){ var inp=$('fotoEvid'); inp.dataset.id=d.verif; inp.click(); }
-  else if (d.firmar){ abrirFirma(d.firmar); }
+  else if (d.resp!=null){ var rr0 = tk().riesgos[+d.resp];
+    elegirResponsable({nombre:rr0.respNombre}, function(p0){ rr0.respNombre = p0.nombre; rr0.respCargo = p0.cargo; if (p0.agregar){ rr0.respAgregar = true;
+      var ci0 = centroInfo(cur.centro); if (ci0) (ci0.responsables = ci0.responsables||[]).push({nombre:p0.nombre, cargo:p0.cargo}); }
+      tk().guardada = false; guardarBorrador(); render(true); }); }
+  else if (d.mresp){ cambiarResponsableMedida(d.mresp); }
   else if (d.share){ var us = (datos.usuarios||[]).filter(function(x){return x.id===d.share;})[0]; if (us) compartirAcceso(us); }
   else if (b.id==='btnNueva') nuevaEvaluacion();
   else if (b.id==='btnCopiarDesde') copiarDesde();
@@ -3211,7 +3270,7 @@ document.addEventListener('click', function(e){
   else if (b.id==='btnGuardar') guardarTodas();
   else if (b.id==='btnQueSigue') queSigue('');
   else if (b.id==='btnEnviar') enviar();
-  else if (b.id==='btnFirmas') elegirPuestoFirma();
+  else if (b.id==='btnAutorizar') abrirAutorizacion();
   else if (b.id==='btnProbar') probarConexion();
   else if (b.id==='btnDesconectar'){ var c0 = {apiUrl:cfg.apiUrl, token:cfg.token}; cfg.apiUrl=''; cfg.token=''; save('iper_cfg', cfg); SRV.usuario=null; render(true);
     conDeshacer('Teléfono desconectado.', function(){ cfg.apiUrl=c0.apiUrl; cfg.token=c0.token; save('iper_cfg', cfg); location.reload(); }, function(){ try{ localStorage.removeItem('iper_srv'); }catch(x){} location.reload(); }); }
@@ -3269,8 +3328,11 @@ var Demo = (function(){
   var nombre = function(c){ var x = CAT.filter(function(k){return k.c===c;})[0]; return x?x.r:c; };
   var ver = {'Eliminación':'Registro del cambio','Sustitución':'Factura del reemplazo','Control de ingeniería':'Fotografía de la instalación','Control administrativo':'Registro de capacitación','EPP':'Registro de entrega de EPP'};
   function centro(c){ return function(x){ return String(x.centro).toLowerCase()===String(c).toLowerCase(); }; }
+  function autDemo(c){ var a = c.aut; if (!a) return null; var ts = DB.tareas.filter(centro(c.nombre));
+    var mot = ts.length!==a.n ? 'Cambió el número de tareas' : ts.some(function(t){return t.estado!=='Validada';}) ? 'Hay tareas sin validar' : ts.some(function(t){return (t.mod||0)>a.t;}) ? 'Se modificaron tareas' : '';
+    return {nombre:a.nombre, cargo:a.cargo, fecha:a.fecha, vigente:!mot, motivo:mot}; }
   function centrosDemo(){ return DB.centros.map(function(c){ var ts = DB.tareas.filter(centro(c.nombre));
-    return Object.assign({}, c, {tareas:ts.length, actualizado:ts.length?new Date().toISOString():''}); }); }
+    return Object.assign({}, c, {tareas:ts.length, actualizado:ts.length?new Date().toISOString():'', autorizacion:autDemo(c)}); }); }
   return {
     getConfig: function(){ var listas={}; DB.tareas.forEach(function(t){ listas[t.centro]=listas[t.centro]||{procesos:[],puestos:[]};
       if(listas[t.centro].procesos.indexOf(t.proceso)<0)listas[t.centro].procesos.push(t.proceso); if(listas[t.centro].puestos.indexOf(t.puesto)<0)listas[t.centro].puestos.push(t.puesto); });
@@ -3284,7 +3346,7 @@ var Demo = (function(){
       ['nHombres','nMujeres','nOtros'].forEach(function(k){ if (fi[k] && !/^\d+$/.test(fi[k])) throw new Error('El número de trabajadores debe ser un número entero.'); });
       Object.assign(c, {razonSocial:d.razonSocial, rutEmpresa:d.rutEmpresa?formatoRut(d.rutEmpresa):'', nombre:d.nombre, direccion:d.direccion, ceal:d.ceal||'Sin evaluar', carpeta:'',
         respEjecNombre:d.respEjecNombre||'', respEjecCargo:d.respEjecCargo||'', respSegNombre:d.respSegNombre||'', respSegCargo:d.respSegCargo||'', ficha:fi,
-        tieneLogo: d.logo===undefined ? !!c.tieneLogo : !!(d.logo && d.logo.data)});
+        tieneLogo: d.logo===undefined ? !!c.tieneLogo : !!(d.logo && d.logo.data), responsables: d.responsables || c.responsables || []});
       return {id:c.id, centros:centrosDemo()}; },
     prepararPuesto: function(d){
       var tareas = (d.tareas||[]).map(function(t){ t = String(t).trim().replace(/\s+/g,' '); t = t.charAt(0).toUpperCase()+t.slice(1); return /[.!?]$/.test(t) ? t : t+'.'; });
@@ -3293,6 +3355,14 @@ var Demo = (function(){
         {tarea:'Orden y aseo del puesto de trabajo al término de la jornada.', rutinaria:true, motivo:'Tarea habitual que no aparece en la lista'},
         {tarea:'Actuación ante una emergencia o evacuación del centro.', rutinaria:false, motivo:'Toda persona participa en las emergencias'}]}; },
     logoCentro: function(){ return {logo:''}; },
+    autorizarMatriz: function(d){ var c = DB.centros.filter(function(x){ return x.nombre.toLowerCase()===String(d.centro).toLowerCase(); })[0], ts = DB.tareas.filter(centro(d.centro));
+      if (!d.nombre || !d.cargo) throw new Error('Indica nombre y cargo de quien autoriza.');
+      var f = ts.filter(function(t){return t.estado!=='Validada';}).length; if (f) throw new Error('Antes de autorizar, valida todas las tareas de la matriz (faltan '+f+').');
+      c.aut = {nombre:d.nombre, cargo:d.cargo, fecha:new Date().toISOString(), t:Date.now(), n:ts.length}; return {autorizacion:autDemo(c), centros:centrosDemo()}; },
+    asignarResponsable: function(id, n, cg, agregar){ var m = DB.medidas.filter(function(x){return x.id===id;})[0]; m.responsable = n; m.responsableCargo = cg;
+      var r0 = null;
+      if (agregar){ var c = DB.centros.filter(function(x){ return x.nombre===m.centro; })[0]; (c.responsables = c.responsables||[]).push({nombre:n, cargo:cg}); return {ok:true, centros:centrosDemo()}; }
+      return {ok:true, centros:null}; },
     analizarTarea: function(t){
       var med = [{texto:'Charla de inducción',jerarquia:'Control administrativo'},{texto:'Chaleco reflectante y zapatos de seguridad',jerarquia:'EPP'}];
       var mk = function(pel,org,c,p,cc,prop,j,pr,cr,prot,leg){ return aplicarReglas({peligro:pel,origen:org,confirmado:org==='foto'?null:true,codigo:c,riesgo:nombre(c),fam:(CAT.filter(function(k){return k.c===c;})[0]||{}).fam||'SEG',
@@ -3312,11 +3382,13 @@ var Demo = (function(){
       DB.tareas = DB.tareas.filter(function(x){return x.id!==id;});
       var riesgos = t.riesgos.filter(function(r){return r.confirmado!==false;});
       H(t.id?'Reevaluada / editada':'Creada', id, riesgos.length+' riesgos');
-      DB.tareas.push({id:id, creadoPor:'Administrador (demo)', modificadoPor:'Administrador (demo)', version:1, centro:meta.centro, proceso:t.proceso, puesto:t.puesto, tarea:t.tarea, estado:'Borrador', aprobador:'', reevaluar:false, motivo:'', d:JSON.parse(JSON.stringify(Object.assign({},t,{riesgos:riesgos})))});
+      DB.tareas.push({id:id, mod:Date.now(), creadoPor:'Administrador (demo)', modificadoPor:'Administrador (demo)', version:1, centro:meta.centro, proceso:t.proceso, puesto:t.puesto, tarea:t.tarea, estado:'Borrador', aprobador:'', reevaluar:false, motivo:'', d:JSON.parse(JSON.stringify(Object.assign({},t,{riesgos:riesgos})))});
       DB.medidas = DB.medidas.filter(function(m){return m.tareaId!==id;});
+      var cd = DB.centros.filter(function(x){ return x.nombre===meta.centro; })[0] || {};
+      riesgos.forEach(function(r){ if (r.respAgregar && r.respNombre){ (cd.responsables = cd.responsables||[]).push({nombre:r.respNombre, cargo:r.respCargo}); delete r.respAgregar; } });
       riesgos.forEach(function(r){ if(!r.medidaPropuesta)return; var n=nivel(r.p*r.c);
         DB.medidas.push({id:'m'+(DB.n++), tareaId:id, centro:meta.centro, puesto:t.puesto, codigo:r.codigo, riesgo:r.riesgo, nivelInicial:n, medida:r.medidaPropuesta, jerarquia:r.jerarquia,
-          responsable:meta.respEjec, plazo:new Date(Date.now()+({Intolerable:-2,Importante:30,Moderado:90,Tolerable:365}[n])*864e5).toISOString(), estado:'Pendiente', evidencia:'', verificador:ver[r.jerarquia]}); });
+          responsable:r.respNombre||cd.respEjecNombre||'', responsableCargo:r.respNombre?r.respCargo:(cd.respEjecCargo||''), plazo:new Date(Date.now()+({Intolerable:-2,Importante:30,Moderado:90,Tolerable:365}[n])*864e5).toISOString(), estado:'Pendiente', evidencia:'', verificador:ver[r.jerarquia]}); });
       return {id:id, riesgos:riesgos.length, medidas:DB.medidas.filter(function(m){return m.tareaId===id;}).length};
     },
     listarTareas: function(c){ return DB.tareas.filter(centro(c)).map(function(t){ var cont={Tolerable:0,Moderado:0,Importante:0,Intolerable:0},max=0;
@@ -3358,7 +3430,6 @@ var Demo = (function(){
       tareas:DB.tareas.filter(function(t){return t.puesto===p;}).map(function(t){ return {tarea:t.tarea, riesgos:t.d.riesgos.map(function(r){
         return {peligro:r.peligro, riesgo:r.riesgo, codigo:r.codigo, consecuencia:r.c>=4?'puede causar lesiones graves, incapacidad permanente o muerte':r.c>=2?'puede causar lesiones con incapacidad temporal':'puede causar lesiones leves',
           medidas:(r.medidasActuales||[]).map(function(m){return m.replace(/^[^:]+:\s*/,'');}).concat(r.medidaPropuesta?[r.medidaPropuesta+' (en implementación)']:[])}; })}; })}; },
-    firmarInformacion: function(d){ if (!rutValido(d.rut)) throw new Error('El RUT no es válido.'); DB.firmas.push({fecha:new Date().toISOString(), puesto:d.puesto, trabajador:d.trabajador, rut:d.rut, pdf:'#'}); return {url:'#'}; },
     copiarTareas: function(ids, destino, mover){
       ids.forEach(function(id){ var t = DB.tareas.filter(function(x){return x.id===id;})[0]; if (!t) return;
         if (mover){ t.centro = destino; DB.medidas.forEach(function(m){ if (m.tareaId===id) m.centro = destino; }); }
@@ -3379,7 +3450,7 @@ var Demo = (function(){
         {titulo:'Matriz de riesgos evaluada y validada', ok:ts.length>0&&val===ts.length, detalle:val+' de '+ts.length+' tareas validadas', accion:'matriz'},
         {titulo:'Evaluación psicosocial (CEAL-SM)', ok:ct.ceal && ct.ceal!=='Sin evaluar', detalle:ct.ceal||'Sin evaluar', accion:'centro'},
         {titulo:'Programa de trabajo: medidas al día', ok:ms.length>0&&!ms.some(function(m){return m.vencida;}), detalle:ms.filter(function(m){return m.estado==='Verificada';}).length+' de '+ms.length+' verificadas', accion:'medidas'},
-        {titulo:'Información de riesgos firmada (DS 44)', ok:false, detalle:DB.firmas.length+' firma(s)', accion:'firmas'},
+        (function(){ var a = autDemo(ct); return {id:'autorizacion', titulo:'Matriz autorizada y firmada', ok:!!(a&&a.vigente), detalle:a?(a.vigente?'Por '+nc(a.nombre,a.cargo):'La matriz cambió después de la autorización: debe firmarse de nuevo'):'Falta la firma de quien autoriza la matriz', accion:'autorizar'}; })(),
         {titulo:'Guía técnica MMC / MMP', ok:!!DB.prot, detalle:DB.prot?'Gestionado':'Evaluar la manipulación de carga con la guía técnica.', accion:'protocolo', protocolo:'Guía técnica MMC / MMP'}];
       if (nT>=10) it.push({id:'riohs', titulo:'Reglamento interno de orden, higiene y seguridad', ok:fi.riohs==='Sí', detalle:fi.riohs==='Sí'?'Vigente':'Obligatorio con 10 o más trabajadores', accion:'centro'});
       if (nT>=25) it.push({id:'comite', titulo:'Comité Paritario de Higiene y Seguridad', ok:fi.comite==='Sí', detalle:fi.comite==='Sí'?'Constituido':'Obligatorio con más de 25 trabajadores', accion:'centro'});
