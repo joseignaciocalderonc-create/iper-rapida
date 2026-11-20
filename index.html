@@ -1535,7 +1535,7 @@ function qrSvg(texto, px){
 }
 
 /* ======================= Constantes ======================= */
-var VERSION_APP = '10.1';
+var VERSION_APP = '10.2';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -1588,6 +1588,32 @@ var MEDIDAS_RAPIDAS = ['Charla de inducción','Capacitación','Procedimiento de 
 var CEAL_OPC = ['Sin evaluar','Riesgo bajo','Riesgo medio','Riesgo alto'];
 var ROLES = {visualizador:1, evaluador:2, validador:3, admin:4};
 var ROLES_TXT = {visualizador:'Visualizador', evaluador:'Evaluador', validador:'Validador', admin:'Administrador'};
+
+/* ======================= Demostración limitada ======================= */
+var LIMITES_DEMO = {instalaciones:1, tareas:5, personas:2};
+function enDemo(){ return modo()==='demo'; }
+function bannerDemo(){
+  return '<div class="note aviso" style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:180px"><b>Demostración.</b> El análisis es un ejemplo, los datos no se guardan y algunas funciones están limitadas.</span>'+
+    '<span style="display:flex;gap:6px"><button class="chip on" data-salirdemo="registro">Crear cuenta</button><button class="chip" data-salirdemo="ingresar">Ingresar</button></span></div>';
+}
+/** Pantalla que aparece al llegar a un límite de la demostración. */
+function versionCompleta(que){
+  abrirSheet(cabecera('Disponible en la versión completa')+
+    '<p style="margin-top:0">'+esc(que)+' es parte de la versión completa de IPER Rápida.</p>'+
+    '<div class="list">'+['Análisis con IA de tus tareas y fotos (en la demostración es un ejemplo)','Instalaciones, tareas y personas sin límite','Matriz MIPER en Excel y PDF, enviada a tu correo',
+      'Carpeta del trabajador: IRL, PTS, MEHM, EPP y RIOHS en PDF','Firma de autorización de la matriz','Tus datos guardados y disponibles en cualquier teléfono'].map(function(x){
+      return '<div class="li"><span class="ok-i si">'+ico('ok')+'</span><span class="tx"><b class="wrap" style="font-weight:400">'+x+'</b></span></div>'; }).join('')+'</div>'+
+    '<button class="btn" data-salirdemo="registro">Crear mi cuenta</button><button class="btn ghost" style="width:100%;margin-top:6px" onclick="cerrarSheet()">Seguir probando</button>');
+}
+function salirDemo(vista){
+  cerrarSheet();
+  Object.keys(borradores).forEach(function(k){ if (borradores[k].demo) borrarBorrador(k); });
+  cfg.demo = false; cfg.centro = ''; save('iper_cfg', cfg); cur = null;
+  SRV.usuario = null; SRV.centros = []; SRV.listas = {}; datos = {tareas:null, medidas:null, panel:null, usuarios:null, cumpl:null, personal:null};
+  ACC.vista = vista || 'ingresar'; tab = 'acceso';
+  if (!servidor()) { toast('Falta la dirección del servidor en la app.'); }
+  render();
+}
 
 /* ======================= Reinicio (v10): el teléfono parte de cero una vez ======================= */
 var REINICIO_APP = 'v10';
@@ -1648,6 +1674,7 @@ function fSec(titulo, cuerpo, completos, total, abierto, clave){
 }
 /** Ficha del centro de trabajo: datos de la empresa, del centro, de las personas y de la organización preventiva. */
 function abrirCentro(nombre, seccion){
+  if (enDemo() && !nombre && (SRV.centros||[]).length >= LIMITES_DEMO.instalaciones) return versionCompleta('Registrar más de una instalación');
   var c = nombre ? centroInfo(nombre) : null, x = c || {razonSocial:'', rutEmpresa:'', nombre:'', direccion:'', ceal:'Sin evaluar', ficha:{}};
   var f = x.ficha || {}, rsList = Array.from(new Set((SRV.centros||[]).map(function(k){return k.razonSocial;})));
   var n = function(arr){ return arr.filter(function(v){ return String(v||'').trim(); }).length; };
@@ -1751,7 +1778,7 @@ function abrirCentro(nombre, seccion){
 /* Una evaluación = un puesto con una o varias tareas. Se pueden tener varias a medias.
    Los textos se guardan en el teléfono (localStorage) y las fotos en IndexedDB. */
 function nuevoPuesto(){ return {bid:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), proceso:'',puesto:'',lugar:'',hombres:'',mujeres:'',otros:'',
-  sensibles:{}, fotos:[], relato:'', tareas:[], idx:0, exp:-1, enCola:false, paso:1, actualizado:Date.now()}; }
+  sensibles:{}, fotos:[], relato:'', tareas:[], idx:0, exp:-1, enCola:false, paso:1, actualizado:Date.now(), demo:enDemo()}; }
 function nuevaTareaItem(medidas){ return {id:null, tarea:'', rutinaria:true, medidasTexto:medidas||'', epp:[], riesgos:[], medidasActuales:[], observacionesFoto:'', analizado:false, guardada:false, aceptada:false}; }
 function tk(){ return cur.tareas[cur.idx] || cur.tareas[0]; }
 
@@ -1863,7 +1890,9 @@ function enviarJob(job){
 function run(fn){
   var args = Array.prototype.slice.call(arguments,1);
   var m = modo();
-  if (m==='demo') return Promise.resolve().then(function(){ return Demo[fn].apply(null,args); });
+  if (m==='demo') return Promise.resolve().then(function(){ return Demo[fn].apply(Demo,args); }).catch(function(e){
+    if (/^DEMO:/.test(e.message)){ var q = e.message.slice(5); setTimeout(function(){ busy(false); versionCompleta(q); }, 50); var x = new Error('Disponible en la versión completa.'); x.demo = true; throw x; }
+    throw e; });
   if (m==='api'){
     if (!navigator.onLine) return Promise.reject(sinRed());
     var job = {id:nuevoJob(), fn:fn, args:args, inicio:Date.now()};
@@ -1988,7 +2017,7 @@ function render(keepScroll){
   document.querySelectorAll('nav button').forEach(function(b){ b.classList.toggle('on', b.dataset.tab===tab); });
   $('btnAjustes').classList.toggle('on', tab==='ajustes');
   var r = tab==='acceso'?[renderAcceso(),'']:tab==='centros'?renderCentros():tab==='inicio'?renderInicio():tab==='evaluar'?renderNueva():tab==='matriz'?renderMatriz():tab==='medidas'?renderMedidas():tab==='personal'?renderPersonal():[renderAjustes(),''];
-  $('app').innerHTML = r[0];
+  $('app').innerHTML = (enDemo() && tab!=='acceso' ? bannerDemo() : '') + r[0];
   $('barIn').innerHTML = r[1]; $('bar').classList.toggle('hidden', !r[1]);
   pintarCabecera();
   if (!keepScroll) window.scrollTo(0,0);
@@ -2705,7 +2734,8 @@ function renderAjustes(){
       '<button class="btn ghost peligro" style="width:100%;margin-bottom:6px" id="btnBorrarCuenta">Eliminar mi cuenta</button>';
   }
   h += '<div class="card'+(u && u.tipo==='cuenta'?' hidden':'')+'"><h3>Tu cuenta</h3>';
-  if (modo()==='demo') h += '<p class="muted" style="margin:0 0 8px">Modo demostración: los datos no se guardan. Para conectarte, abre el enlace de acceso que te envió quien administra la app.</p>';
+  if (modo()==='demo') h += '<p class="muted" style="margin:0 0 8px">Estás en la demostración: los datos no se guardan y algunas funciones están limitadas.</p>'+
+    '<button class="btn" data-salirdemo="registro">Crear mi cuenta</button><button class="btn ghost" style="width:100%;margin-top:6px" data-salirdemo="ingresar">Salir de la demostración e ingresar</button>';
   else h += '<p style="margin:0 0 8px">Conectado como <b>'+esc(u?u.nombre:'')+'</b>, '+esc(u?(u.rolTxt||ROLES_TXT[u.rol]):'').toLowerCase()+
     (u&&u.todosLosCentros===false?'<br><span class="muted">Acceso a '+(SRV.centros||[]).length+' instalación(es)</span>':'')+'</p>';
   if (!EN_APPS_SCRIPT) h += '<details><summary class="muted">Conexión manual (avanzado)</summary>'+
@@ -3137,6 +3167,7 @@ function abrirTrabajador(id){
 }
 /** Genera la carpeta (PDF) de una o varias personas. Sin IA: usa la IRL guardada del puesto. */
 function abrirDocumentos(ids){
+  if (enDemo()) return versionCompleta('Generar los documentos de la carpeta del trabajador');
   var D = datos.personal || {personas:[], puestos:[]}, varios = !ids;
   var personas = varios ? D.personas : D.personas.filter(function(p){ return ids.indexOf(p.id)>=0; });
   var sinFicha = function(p){ return !D.puestos.some(function(k){ return k.puesto===p.puesto && k.ficha; }); };
@@ -3218,6 +3249,7 @@ function tarjetaAutorizacion(L){
   return '<div style="margin-bottom:14px">'+txt+btn+'</div>';
 }
 function abrirAutorizacion(){
+  if (enDemo()) return versionCompleta('La firma de autorización de la matriz');
   var L = datos.tareas || [], faltan = L.filter(function(t){ return t.estado!=='Validada'; }).length;
   if (!L.length) return toast('Primero evalúa y valida las tareas de la instalación.');
   if (faltan) return toast('Antes de autorizar, valida todas las tareas de la matriz (faltan '+faltan+').', 6000);
@@ -3353,6 +3385,7 @@ function actualizarMedida(id, estado, foto){
     .catch(function(e){ busy(false); toast(e.message); });
 }
 function enviar(){
+  if (enDemo()) return versionCompleta('Enviar la matriz en Excel y PDF');
   if (!cfg.email) { irA('ajustes'); return toast('Configura el correo de destino.'); }
   busy(true,'Generando Excel y PDF…','Matriz, datos de la instalación, programa de trabajo, información por puesto, EPP, protocolos y firmas'); progTramo(0, 100, 45);
   run('generarYEnviar', {empresa:cfg.empresa, centro:cfg.centro, respEjec:cfg.respEjec, respSeg:cfg.respSeg, email:cfg.email})
@@ -3584,6 +3617,7 @@ document.addEventListener('click', function(e){
   var b = e.target.closest('button,[data-delph]'); if (!b) return;
   var d = b.dataset;
   if (d.ayuda!=null){ e.preventDefault(); toggleAyuda(b); return; }
+  if (d.salirdemo){ salirDemo(d.salirdemo); return; }
   if (d.acv){ ACC.vista = d.acv; render(); return; }
   if (/^ac[A-Z]/.test(b.id)){ e.preventDefault(); accionAcceso(b.id); return; }
   if (d.verclave){ var ic = $(d.verclave); ic.type = ic.type==='password'?'text':'password'; b.textContent = ic.type==='password'?'Mostrar':'Ocultar'; return; }
@@ -3736,6 +3770,7 @@ var Demo = (function(){
       if(listas[t.centro].procesos.indexOf(t.proceso)<0)listas[t.centro].procesos.push(t.proceso); if(listas[t.centro].puestos.indexOf(t.puesto)<0)listas[t.centro].puestos.push(t.puesto); });
       return {version:8, email:'', catalogo:CAT, tieneClave:true, listas:listas, avisosActivos:false, usuario:{nombre:'Persona Demo', correo:'', rol:'admin', rolTxt:'Administrador', todosLosCentros:true, tipo:'demo'}, logo:DB.logo||'', centros:centrosDemo()}; },
     guardarCentro: function(d){ if (!d.razonSocial||!d.nombre) throw new Error('Completa la razón social y el nombre.');
+      if (!d.id && DB.centros.length >= LIMITES_DEMO.instalaciones) throw new Error('DEMO:Registrar más de una instalación');
       if (DB.centros.some(function(c){return c.nombre.toLowerCase()===d.nombre.toLowerCase() && c.id!==d.id;})) throw new Error('Ya tienes una instalación con ese nombre.');
       var c = d.id ? DB.centros.filter(function(x){return x.id===d.id;})[0] : null;
       if (!c){ c = {id:'c'+(DB.n++)}; DB.centros.push(c); }
@@ -3772,11 +3807,12 @@ var Demo = (function(){
         pts:['Procedimiento de trabajo seguro del puesto'], epp:epp.length?epp:['Zapatos de seguridad'], mehm:[], temas:['Política de Seguridad y Salud Ocupacional y RIOHS.','Factores de riesgo del cargo y medidas preventivas.','Plan de emergencia y evacuación.'], guardada:false}; },
     guardarFichaPuesto: function(c, p, f){ DB.puestos = DB.puestos || {}; DB.puestos[c+'|'+p] = {ficha:f, fecha:new Date().toISOString()}; return {ok:true}; },
     guardarTrabajador: function(d){ if (!rutValido(d.rut)) throw new Error('El RUT de la persona no es válido.'); DB.trab = DB.trab || [];
+      if (!d.id && DB.trab.length >= LIMITES_DEMO.personas) throw new Error('DEMO:Registrar más de '+LIMITES_DEMO.personas+' personas');
       var x = d.id ? DB.trab.filter(function(k){ return k.id===d.id; })[0] : null; if (!x){ x = {id:'w'+(DB.n++), documentos:[]}; DB.trab.push(x); }
       Object.assign(x, {centro:d.centro, nombre:d.nombre, rut:formatoRut(d.rut), puesto:d.puesto, fechaContratacion:d.fechaContratacion, direccion:d.direccion}); return {id:x.id}; },
     eliminarTrabajador: function(id){ DB.trab = (DB.trab||[]).filter(function(k){ return k.id!==id; }); return {ok:true}; },
-    generarDocumentos: function(d){ var x = DB.trab.filter(function(k){ return k.id===d.trabajadorId; })[0]; x.documentos.push({fecha:new Date().toISOString(), modulos:d.modulos, url:'#'}); return {url:'#', nombre:'Carpeta (demo)'}; },
-    autorizarMatriz: function(d){ var c = DB.centros.filter(function(x){ return x.id===d.centro; })[0], ts = DB.tareas.filter(centro(d.centro));
+    generarDocumentos: function(d){ throw new Error('DEMO:Generar los documentos de la carpeta del trabajador'); var x = DB.trab.filter(function(k){ return k.id===d.trabajadorId; })[0]; x.documentos.push({fecha:new Date().toISOString(), modulos:d.modulos, url:'#'}); return {url:'#', nombre:'Carpeta (demo)'}; },
+    autorizarMatriz: function(d){ throw new Error('DEMO:La firma de autorización de la matriz'); var c = DB.centros.filter(function(x){ return x.id===d.centro; })[0], ts = DB.tareas.filter(centro(d.centro));
       if (!d.nombre || !d.cargo) throw new Error('Indica nombre y cargo de quien autoriza.');
       var f = ts.filter(function(t){return t.estado!=='Validada';}).length; if (f) throw new Error('Antes de autorizar, valida todas las tareas de la matriz (faltan '+f+').');
       c.aut = {nombre:d.nombre, cargo:d.cargo, fecha:new Date().toISOString(), t:Date.now(), n:ts.length}; return {autorizacion:autDemo(c), centros:centrosDemo()}; },
@@ -3799,6 +3835,7 @@ var Demo = (function(){
     },
     guardarTarea: function(t, meta){
       if (!meta.centro) throw new Error('Abre una instalación.');
+      if (!t.id && DB.tareas.length >= LIMITES_DEMO.tareas) throw new Error('DEMO:Guardar más de '+LIMITES_DEMO.tareas+' tareas');
       var id = t.id || 'd'+(DB.n++);
       DB.tareas = DB.tareas.filter(function(x){return x.id!==id;});
       var riesgos = t.riesgos.filter(function(r){return r.confirmado!==false;});
@@ -3828,7 +3865,7 @@ var Demo = (function(){
       return {tareas:ts.length,estados:{Borrador:ts.filter(function(t){return t.estado==='Borrador';}).length,Revisada:ts.filter(function(t){return t.estado==='Revisada';}).length,Validada:ts.filter(function(t){return t.estado==='Validada';}).length},
         riesgos:tot,inicial:ini,actual:act,residualAceptado:ac,medidas:{total:ms.length,Pendiente:ms.filter(function(m){return m.estado==='Pendiente';}).length,Implementada:ms.filter(function(m){return m.estado==='Implementada';}).length,
         Verificada:ms.filter(function(m){return m.estado==='Verificada';}).length,vencidas:ms.filter(function(m){return m.vencida;}).length},reevaluar:ts.filter(function(t){return t.reevaluar;}).length,revisiones:0,protocolos:prot}; },
-    generarYEnviar: function(m){ if(!DB.tareas.filter(centro(m.centro)).length) throw new Error('No hay tareas guardadas para esta instalación.');
+    generarYEnviar: function(m){ throw new Error('DEMO:Enviar la matriz en Excel y PDF'); if(!DB.tareas.filter(centro(m.centro)).length) throw new Error('No hay tareas guardadas para esta instalación.');
       return {email:m.email,url:'#',nombre:'Matriz IPER - '+m.centro+' (demo)',total:DB.tareas.filter(centro(m.centro)).reduce(function(a,t){return a+t.d.riesgos.length;},0)}; },
     separarTareas: function(d){
       return {tareas:[
