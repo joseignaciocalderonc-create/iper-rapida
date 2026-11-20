@@ -116,6 +116,8 @@
   .x{border:0;background:none;color:var(--muted);font-size:22px;line-height:1;padding:2px 6px;border-radius:8px}
   .ctrl{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
   .ctrl ul{margin:4px 0 0;padding-left:18px;font-size:14px}
+  .pills,.li .tx .pills{display:flex !important;flex-wrap:wrap;gap:4px;margin-top:5px}.li .tx .pills .pill{display:inline-block;width:auto} a.chip{text-decoration:none}.pill{font-size:11.5px;border:1px solid var(--line);border-radius:10px;padding:1px 7px;color:var(--muted)}.pill.ok{color:#7FE0A0;border-color:rgba(127,224,160,.4)}.pill.warn{color:#FFC36B;border-color:rgba(255,195,107,.5)}
+  .note.warn{border-color:rgba(255,195,107,.45);background:rgba(255,195,107,.08)}
   .note{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:14px;color:var(--txt2)}
   .note.aviso{background:var(--mod-bg);border-color:rgba(233,185,73,.35);color:#F3D58C}
   .note.bien{background:var(--tol-bg);border-color:rgba(76,194,122,.35);color:#9BE3B5}
@@ -286,6 +288,7 @@
   <button data-tab="evaluar"></button>
   <button data-tab="matriz"></button>
   <button data-tab="medidas"></button>
+  <button data-tab="personal"></button>
 </div></nav>
 <input type="file" id="fotoEvid" accept="image/*" class="hidden">
 
@@ -1566,7 +1569,7 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '13.0';
+var VERSION_APP = '14.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -1654,7 +1657,7 @@ var AYUDA_NAV = {
   evaluar:['Evaluar','Describe un puesto y sus tareas. La IA identifica peligros y riesgos y propone medidas.'],
   matriz:['Matriz','La matriz IPER de la instalación: valida, autoriza y envía en Excel y PDF.'],
   medidas:['Medidas','Seguimiento de las medidas: quién las ejecuta, plazos y evidencias.'],
-  personal:['Personal','Personas trabajadoras y sus documentos: PTS, capacitaciones y entrega de EPP.']
+  personal:['Personal','Personas trabajadoras y sus documentos: IRL, entrega del reglamento interno, difusión de PTS y entrega de EPP.']
 };
 /** Burbuja que explica un botón de la barra inferior (al primer uso y al mantenerlo presionado). */
 function burbujaNav(b){
@@ -1681,7 +1684,7 @@ var cfg = Object.assign({empresa:'', centro:'', respEjec:'', respSeg:'', aprobad
 var SRV = {catalogo:[], listas:{}, avisosActivos:false, version:0, usuario:null, logo:'', centros:[]};
 var CATMAP = {};
 var tab = 'centros', paso = 1, tabPrev = 'centros', filtroCentros = '', verCumplOk = false;
-var TABS_CENTRO = ['inicio','evaluar','matriz','medidas'];
+var TABS_CENTRO = ['inicio','evaluar','matriz','medidas','personal'];
 var borradores = cargarBorradores();
 var cur = null;
 var datos = {tareas:null, medidas:null, panel:null, usuarios:null, cumpl:null, personal:null};
@@ -2209,7 +2212,7 @@ function renderInicio(){
     h += '<div class="note" style="margin-top:14px">¿Esta instalación se parece a otra que ya evaluaste? Puedes partir copiando sus tareas y ajustar lo que cambie.'+
       '<div style="height:10px"></div><button class="btn sec" id="btnCopiarDesde">'+ico('copiar')+'Copiar desde otra instalación</button></div>';
   }
-  h += '<div class="sec-t">Avance de la matriz</div>';
+  h += '<div class="sec-t">Avance de la instalación</div>';
   if (!K) h += cargando();
   else if (!K.error){
     var col = K.pct>=80?'var(--tol)':K.pct>=50?'var(--mod)':'var(--int)';
@@ -3093,13 +3096,14 @@ function accionAcceso(id){
 /* ======================= Mi cuenta ======================= */
 function abrirPerfil(){
   var u = SRV.usuario || {};
-  abrirSheet(cabecera('Tus datos como experto/a')+'<p class="muted" style="margin-top:0">Aparecen en la matriz de riesgos que elaboras.</p>'+
+  abrirSheet(cabecera('Tus datos como experto/a')+'<p class="muted" style="margin-top:0">Aparecen en la matriz de riesgos y en los documentos de las personas trabajadoras.</p>'+
     lab('Nombre y apellido')+'<input type="text" id="pfNom" value="'+esc(u.nombre||'')+'">'+lab('RUT')+'<input type="text" id="pfRut" value="'+esc(u.rut||'')+'">'+
     lab('Profesión o cargo')+'<input type="text" id="pfCar" value="'+esc(u.cargo||'')+'">'+lab('N° de registro SEREMI', 'Número de inscripción del experto/a en prevención de riesgos ante la SEREMI de Salud: letras, barra, número y -P. Por ejemplo: AB/ 1234-P.')+'<input type="text" id="pfReg" value="'+esc(u.registro||'')+'" placeholder="Ej: AB/ 1234-P" autocapitalize="characters" autocomplete="off" data-registro>'+
     lab('Teléfono')+'<input type="text" id="pfTel" inputmode="tel" value="'+esc(u.telefono||'')+'">'+
+    '<label class="chk" style="margin-top:12px"><input type="checkbox" id="pfPie"'+(u.pieMarca!==false?' checked':'')+'><span>Mostrar "Elaborado con Miper PrevFront" al pie de los documentos</span></label>'+
     '<div style="height:14px"></div><button class="btn" id="pfOk">Guardar</button>');
   $('pfOk').onclick = function(){
-    var d = {nombre:$('pfNom').value.trim(), rut:$('pfRut').value.trim(), cargo:$('pfCar').value.trim(), registro:$('pfReg').value.trim(), telefono:$('pfTel').value.trim()};
+    var d = {nombre:$('pfNom').value.trim(), rut:$('pfRut').value.trim(), cargo:$('pfCar').value.trim(), registro:$('pfReg').value.trim(), telefono:$('pfTel').value.trim(), pieMarca:$('pfPie').checked};
     if (!rutValido(d.rut)) return toast('Revisa el RUT.');
     if (d.registro && !formatoRegistro(d.registro)) return toast(MSG_REGISTRO, 6000); d.registro = formatoRegistro(d.registro);
     d.rut = formatoRut(d.rut); busy(true,'Guardando…');
@@ -3165,35 +3169,46 @@ function cerrarSesion(){
   run('salir').catch(function(){}).then(function(){ cerrarSesionLocal('Sesión cerrada.'); });
 }
 
-/* ======================= Personal y carpeta del trabajador ======================= */
-function irlActiva(){ return !!(SRV.usuario && SRV.usuario.irl); }
-var MODULOS_TODOS = [['irl','Información de Riesgos Laborales (IRL, art. 15 DS 44)'],['pts','Acta y constancias de Procedimientos de Trabajo Seguro'],
-  ['temas','Registro de temas tratados en la capacitación'],['mehm','Capacitación en máquinas, equipos y herramientas (MEHM)'],['epp','Entrega de EPP y recepción del RIOHS']];
-function modulosVisibles(){ return MODULOS_TODOS.filter(function(m){ return m[0]!=='irl' || irlActiva(); }); }
+/* ======================= Personas trabajadoras y sus documentos (D.S. N° 44) ======================= */
+function irlActiva(){ return !(SRV.usuario && SRV.usuario.irl===false); }
+var MODULOS_TODOS = [['irl','Información de los riesgos laborales (IRL)','Art. 15. Firman la persona trabajadora y quien informa.'],
+  ['ri','Entrega del reglamento interno','RIOHS o RIHS según la dotación. Firma la persona trabajadora.'],
+  ['cap','Difusión y capacitación de PTS','Un registro de 1 hora por procedimiento. Firman la persona y quien relata.'],
+  ['epp','Entrega de EPP','Con marca, modelo y certificación. Firma la persona trabajadora.']];
+var MOTIVOS_IRL = [['ingreso','Antes del inicio de las labores'],['proceso','Incorporación a un nuevo proceso o puesto'],['cambio','Cambio de tecnologías, materiales o sustancias'],['matriz','Actualización de la matriz de riesgos']];
+function modulosVisibles(){ return MODULOS_TODOS; }
+function estadoDocs(x){
+  var e = x.estado || {}, cap = e.cap ? Object.keys(e.cap).length : 0;
+  var b = function(ok, t, alerta){ return '<span class="pill'+(alerta?' warn':ok?' ok':'')+'">'+(ok&&!alerta?'✓ ':'')+t+'</span>'; };
+  return b(!!e.irl, x.irlDesactualizada?'IRL por actualizar':'IRL', x.irlDesactualizada)+b(!!e.ri,'Reglamento')+b(cap>0,'PTS'+(cap?' ('+cap+')':''))+b(!!e.epp,'EPP');
+}
+function pendientesDe(x){ var e = x.estado || {}, l = []; if (!e.irl || x.irlDesactualizada) l.push('irl'); if (!e.ri) l.push('ri'); if (!e.cap || !Object.keys(e.cap).length) l.push('cap'); if (!e.epp) l.push('epp'); return l; }
 function renderPersonal(){
   if (!cfg.centro) return [sinCentro(),''];
   if (!online()) return [sinConexionMsg(),''];
-  var D = datos.personal, h = '<h2>Personal</h2><p class="sub">La carpeta de cada persona: '+(irlActiva()?'IRL, ':'')+'PTS, capacitaciones, MEHM, entrega de EPP y RIOHS. La IA prepara la ficha de cada puesto una vez; después los documentos salen al instante.</p>';
+  var D = datos.personal, h = '<h2>Personas trabajadoras</h2><p class="sub">Arma la carpeta de cada persona con los datos de la matriz: IRL, entrega del reglamento interno, difusión de PTS y entrega de EPP. Salen en PDF para imprimir y firmar a mano, y en Word para editar.</p>';
   if (!D) return [h+cargando(),''];
-  if (!D.puestos.length) return [h+'<div class="empty">Primero evalúa los puestos de esta instalación en la matriz: la ficha de cada puesto se arma desde ella.</div>',''];
-  h += '<div class="sec-t">Ficha de cada puesto</div><div class="list">'+D.puestos.map(function(p){
+  if (!D.puestos.length) return [h+'<div class="empty">Primero evalúa los puestos de esta instalación en la matriz: los documentos de cada persona se arman desde ella.</div>',''];
+  var porActualizar = D.personas.filter(function(x){ return x.irlDesactualizada; });
+  if (porActualizar.length) h += '<div class="note warn" style="margin-bottom:12px"><b>La matriz cambió.</b> '+porActualizar.length+' persona(s) deben recibir de nuevo su IRL: '+porActualizar.map(function(x){ return esc(x.nombre); }).join(', ')+'.</div>';
+  h += '<div class="sec-t">1. Ficha de cada puesto</div><p class="muted" style="margin:-4px 0 8px">La IA la prepara una vez desde la matriz: lugar de trabajo, emergencias, sustancias, PTS y EPP. Revísala y guárdala.</p><div class="list">'+D.puestos.map(function(p){
     return '<button class="li" data-ficha="'+esc(p.puesto)+'"><span class="ok-i '+(p.ficha?'si':'no')+'">'+ico(p.ficha?'ok':'alerta')+'</span><span class="tx"><b>'+esc(p.puesto)+'</b><span>'+
-      (p.ficha?'Ficha lista, actualizada el '+fecha(p.actualizada):'Ficha por preparar')+'</span></span><span class="chev">'+ico('chev')+'</span></button>'; }).join('')+'</div>';
-  h += '<div class="sec-t">Personas trabajadoras ('+D.personas.length+')</div>';
-  if (!D.personas.length) h += '<p class="muted">Agrega a las personas de esta instalación para generar su carpeta.</p>';
+      (p.ficha?'Ficha lista, actualizada el '+fecha(p.actualizada)+(p.pts.length?' · '+p.pts.length+' PTS':''):'Ficha por preparar')+'</span></span><span class="chev">'+ico('chev')+'</span></button>'; }).join('')+'</div>';
+  h += '<div class="sec-t">2. Personas trabajadoras ('+D.personas.length+')</div>';
+  if (!D.personas.length) h += '<p class="muted">Agrega a cada persona una vez: nombre, RUT, puesto y fecha de ingreso.</p>';
   else {
-    var g = '';
     h += '<div class="list">'+D.personas.map(function(x){
-      var ult = (x.documentos||[]).slice(-1)[0];
-      return '<div class="li" data-trab="'+x.id+'"><span class="tx"><b>'+esc(x.nombre)+'</b><span>'+esc(x.puesto)+', RUT '+esc(x.rut)+(ult?'. Documentos del '+fecha(ult.fecha):'. Sin documentos')+'</span></span>'+
+      return '<div class="li" data-trab="'+x.id+'"><span class="tx"><b>'+esc(x.nombre)+'</b><span>'+esc(x.puesto)+' · RUT '+esc(x.rut)+'</span><span class="pills">'+estadoDocs(x)+'</span></span>'+
         '<button class="chip" data-docs="'+x.id+'">'+ico('firma')+'Documentos</button></div>'; }).join('')+'</div>';
-    if (D.personas.length>1) h += '<button class="btn ghost" style="width:100%" id="btnDocsVarios">Generar documentos de varias personas</button>';
+    if (D.personas.length>1) h += '<button class="btn ghost" style="width:100%" id="btnDocsVarios">Documentos de varias personas</button>';
   }
   return [h, puede('evaluador')?'<button class="btn" id="btnAddTrab">'+ico('mas')+'Agregar persona</button>':''];
 }
-function lineas(t){ return String(t||'').split('\n').map(function(x){ return x.replace(/^[•\-\d.)\s]+/,'').trim(); }).filter(String); }
+function lineas(t){ return String(t||'').split('\n').map(function(x){ return x.replace(/^[•\-\d.)\s]+(?=\D)/,'').trim(); }).filter(String); }
+function lineasPts(t){ return String(t||'').split('\n').map(function(x){ return x.replace(/^[•\s]+/,'').trim(); }).filter(String); }
 function pares(t, a, b){ return lineas(t).map(function(l){ var k = l.split(/\s[—–-]\s|:\s/); var o = {}; o[a] = k[0].trim(); o[b] = k.slice(1).join(' — ').trim(); return o; }); }
 function abrirFichaPuesto(puesto, regenerar){
+  if (enDemo()) return versionCompleta('Preparar la ficha del puesto para los documentos de las personas trabajadoras');
   busy(true, regenerar?'Redactando de nuevo la ficha':'Preparando la ficha del puesto', puesto+'. Se hace una sola vez por puesto. Puedes usar otras apps: te avisaremos.'); progTramo(0, 100, 30);
   pedirPermisoAvisos();
   run('fichaPuesto', cfg.centro, puesto, !!regenerar).then(function(f){ busy(false); editarFicha(puesto, f); if (!f.guardada) avisar('Ficha del puesto lista', puesto+': revísala y guárdala.', 'ficha'); })
@@ -3201,92 +3216,132 @@ function abrirFichaPuesto(puesto, regenerar){
 }
 function editarFicha(puesto, f){
   var ta = function(id, et, val, help, filas){ return lab(et, help)+'<textarea id="'+id+'" style="min-height:'+(filas||4)*22+'px">'+esc(val)+'</textarea>'; };
-  var L = function(a){ return (a||[]).join('\n'); };
+  var L = function(a){ return (a||[]).join('\n'); }, T = function(x){ return Array.isArray(x) ? x.join('. ') : (x||''); };
   var sec = function(t, c, open){ return '<details class="sec"'+(open?' open':'')+'><summary>'+t+'</summary><div class="cu">'+c+'</div></details>'; };
-  var irl = irlActiva(), oculto = function(html){ return irl ? html : '<div class="hidden">'+html+'</div>'; };
-  var h = cabecera('Ficha: '+esc(puesto))+'<p class="muted" style="margin-top:0">'+(f.guardada?'Ficha guardada. Revisa y ajusta lo que necesites.':'Redactada por la IA desde la matriz. Revísala, corrige y guarda: se usará en la carpeta de cada persona del puesto.')+' Escribe un elemento por línea.</p>'+
-    oculto(sec('1. Lugar de trabajo, equipos y tareas',
-      ta('fEsp','Espacio de trabajo',L(f.espacio))+ta('fOrd','Condiciones de orden y aseo',L(f.ordenAseo))+ta('fAmb','Condiciones ambientales',f.ambientales,'',3)+
-      ta('fMaq','Maquinaria y equipos',L(f.maquinaria))+ta('fHer','Herramientas y accesorios',L(f.herramientas))+ta('fDes','Descripción general del cargo',f.descripcion,'',3)+ta('fTar','Tareas con riesgo de exposición',L(f.tareas)), !f.guardada)+
-    sec('2. Riesgos, consecuencias y medidas', ta('fRie','Riesgos del cargo','' +(f.riesgos||[]).map(function(r){ return r.riesgo+' — '+r.consecuencia; }).join('\n'),'Una línea por riesgo: el riesgo, un guion largo y su consecuencia.',6)+ta('fMed','Medidas preventivas obligatorias',L(f.medidas),'',6))+
-    sec('3. Emergencias', ta('fEme','Tipos de emergencia',(f.emergencias||[]).map(function(x){ return x.tipo+': '+x.detalle; }).join('\n'),'Una línea por tipo: el tipo, dos puntos y el detalle.')+ta('fREm','Riesgos derivados',L(f.riesgosEmergencia))+ta('fMEm','Medidas preventivas y de emergencia',L(f.medidasEmergencia)))+
-    sec('4. Enfermedades profesionales', ta('fOcu','Riesgo ocupacional',(f.ocupacionales||[]).map(function(x){ return x.riesgo+' — '+x.efectos; }).join('\n'),'Una línea por agente: el agente, un guion largo y sus efectos a la salud.')+ta('fMOc','Medidas de prevención',L(f.medidasOcupacionales)))+
-    sec('5. Sustancias', ta('fSus','Sustancias a manipular',L(f.sustancias),'Déjalo vacío si el puesto no manipula sustancias peligrosas.',3)+lab('Criticidad del producto')+'<input type="text" id="fCri" value="'+esc(f.criticidad||'')+'">'+ta('fMSu','Medidas en manejo de sustancias',L(f.medidasSustancias),'',3)))+
-    sec('PTS, EPP, MEHM y temas de capacitación', ta('fPts','Procedimientos de trabajo seguro (PTS)',L(f.pts),'Los procedimientos que se entregan y capacitan a este puesto.')+ta('fEpp','Elementos de protección personal',L(f.epp),'Se usan para el registro de entrega de EPP de cada persona.')+
-      ta('fMeh','Equipos y herramientas que requieren capacitación MEHM',L(f.mehm),'Déjalo vacío si el puesto no opera máquinas ni herramientas motrices.',3)+ta('fTem','Temas de la capacitación',L(f.temas),'',8), !irl)+
+  var cons = {}; (f.riesgos||[]).forEach(function(r){ cons[String(r.riesgo).toLowerCase()] = r.consecuencia; });
+  var riesgosTxt = (f.riesgosMatriz && f.riesgosMatriz.length ? f.riesgosMatriz : (f.riesgos||[]).map(function(r){ return r.riesgo; }))
+    .map(function(r){ return r+' — '+(cons[String(r).toLowerCase()]||''); }).join('\n');
+  var sus = (f.sustancias||[]).map(function(s){ return typeof s==='string' ? s : [s.producto,s.peligros,s.almacenamiento,s.epp,s.primerosAuxilios].join(' | '); }).join('\n');
+  var h = cabecera('Ficha: '+esc(puesto))+'<p class="muted" style="margin-top:0">'+(f.guardada?'Ficha guardada. Revisa y ajusta lo que necesites.':'Redactada por la IA desde la matriz. Revísala, corrige y guarda: se usa en los documentos de cada persona del puesto.')+
+    ' Los riesgos, su nivel y sus medidas se toman siempre de la matriz vigente.</p>'+
+    sec('1. Lugar de trabajo', ta('fEsp','Espacio de trabajo',T(f.espacio),'',3)+ta('fAmb','Condiciones ambientales',T(f.ambientales),'Iluminación, ventilación, temperatura, ruido.',3)+
+      ta('fOrd','Orden y aseo',T(f.ordenAseo),'',3)+ta('fMaq','Máquinas, equipos y herramientas',L([].concat(f.maquinaria||[], f.herramientas||[])),'Uno por línea.'), !f.guardada)+
+    sec('2. Consecuencias de cada riesgo', ta('fRie','Riesgo — posibles consecuencias',riesgosTxt,'Una línea por riesgo de la matriz: el riesgo, un guion largo y sus posibles consecuencias.',6))+
+    sec('3. Emergencias, catástrofes y desastres', ta('fEme','Situación: medidas y conducta a seguir',(f.emergencias||[]).map(function(x){ return x.tipo+': '+x.detalle; }).join('\n'),'Una línea por situación. Si faltan sismo, incendio o accidente del trabajo, se agregan con un texto base.',5))+
+    sec('4. Productos y sustancias', ta('fSus','Producto | peligros | almacenamiento | EPP | primeros auxilios',sus,'Una línea por producto, con sus datos separados por |, según la hoja de datos de seguridad. Déjalo vacío si no manipula sustancias peligrosas.',4))+
+    sec('5. PTS y EPP', ta('fPts','Procedimientos de trabajo seguro',L(f.pts),'Uno por línea, con su código al inicio. Por ejemplo: PTS-01 Uso de escalera de tijera. Cada uno tendrá su registro de difusión y capacitación de 1 hora.',5)+
+      ta('fEpp','Elementos de protección personal',L(f.epp),'Uno por línea. Se usan en la IRL y en la entrega de EPP.',4))+
     '<button class="btn" id="fiOk">Guardar ficha</button><button class="btn ghost" style="width:100%;margin-top:6px" id="fiIa">'+ico('ia')+'Volver a redactar con IA</button>';
   abrirSheet(h);
   $('fiIa').onclick = function(){ cerrarSheet(); abrirFichaPuesto(puesto, true); };
   $('fiOk').onclick = function(){
     var v = function(id){ return $(id).value; };
-    var ficha = {espacio:lineas(v('fEsp')), ordenAseo:lineas(v('fOrd')), ambientales:v('fAmb').trim(), maquinaria:lineas(v('fMaq')), herramientas:lineas(v('fHer')),
-      descripcion:v('fDes').trim(), tareas:lineas(v('fTar')), riesgos:pares(v('fRie'),'riesgo','consecuencia'), medidas:lineas(v('fMed')),
-      emergencias:pares(v('fEme'),'tipo','detalle').map(function(x){ return x.detalle ? x : {tipo:'', detalle:x.tipo}; }), riesgosEmergencia:lineas(v('fREm')), medidasEmergencia:lineas(v('fMEm')),
-      ocupacionales:pares(v('fOcu'),'riesgo','efectos'), medidasOcupacionales:lineas(v('fMOc')), sustancias:lineas(v('fSus')), criticidad:v('fCri').trim(), medidasSustancias:lineas(v('fMSu')),
-      pts:lineas(v('fPts')), epp:lineas(v('fEpp')), mehm:lineas(v('fMeh')), temas:lineas(v('fTem')), protocolos:f.protocolos||[]};
-    if (irl && !ficha.riesgos.length) return toast('La ficha debe tener al menos un riesgo.');
+    var ficha = {espacio:v('fEsp').trim(), ambientales:v('fAmb').trim(), ordenAseo:v('fOrd').trim(), maquinaria:lineas(v('fMaq')),
+      riesgos:pares(v('fRie'),'riesgo','consecuencia'),
+      emergencias:pares(v('fEme'),'tipo','detalle').map(function(x){ return x.detalle ? x : {tipo:'Otra', detalle:x.tipo}; }),
+      sustancias:lineas(v('fSus')).map(function(l){ var k = l.split('|').map(function(z){ return z.trim(); }); return {producto:k[0], peligros:k[1]||'', almacenamiento:k[2]||'', epp:k[3]||'', primerosAuxilios:k[4]||''}; }),
+      pts:lineasPts(v('fPts')), ptsDetalle:f.ptsDetalle||[], epp:lineas(v('fEpp'))};
     busy(true,'Guardando la ficha…');
     run('guardarFichaPuesto', cfg.centro, puesto, ficha).then(function(){ busy(false); cerrarSheet(); cargar('personal'); toast('Ficha del puesto guardada.'); }).catch(function(e){ busy(false); toast(e.message); });
   };
 }
 function abrirTrabajador(id){
   var D = datos.personal || {puestos:[], personas:[]}, x = D.personas.filter(function(p){ return p.id===id; })[0] || {nombre:'', rut:'', puesto:'', fechaContratacion:'', direccion:''};
-  var ci = centroInfo(cfg.centro) || {}, dirDef = [ci.direccion, (ci.ficha||{}).comuna].filter(Boolean).join(', ');
   abrirSheet(cabecera(id?'Editar persona':'Agregar persona')+
     lab('Nombre completo')+'<input type="text" id="tNom" value="'+esc(x.nombre)+'" autocomplete="off">'+
     lab('RUT')+'<input type="text" id="tRut" value="'+esc(x.rut)+'" autocomplete="off"><div id="tRutMsg" class="muted" style="margin-top:4px"></div>'+
-    lab('Puesto de trabajo', 'Los puestos vienen de la matriz de esta instalación. Sus documentos se arman con la ficha del puesto.')+
+    lab('Puesto de trabajo', 'Los puestos vienen de la matriz de esta instalación. Sus documentos se arman con los riesgos de ese puesto.')+
       '<select id="tPue"><option value="">Elegir</option>'+D.puestos.map(function(p){ return '<option'+(p.puesto===x.puesto?' selected':'')+'>'+esc(p.puesto)+'</option>'; }).join('')+'</select>'+
-    lab('Fecha de contratación')+'<input type="date" id="tFec" value="'+esc(x.fechaContratacion||'')+'">'+
-    lab('Dirección / ciudad', 'Si lo dejas vacío se usa la dirección de la instalación.')+'<input type="text" id="tDir" value="'+esc(x.direccion||'')+'" placeholder="'+esc(dirDef)+'" autocomplete="off">'+
+    lab('Fecha de ingreso')+'<input type="date" id="tFec" value="'+esc(x.fechaContratacion||'')+'">'+
     '<div style="height:14px"></div><button class="btn" id="tOk">'+(id?'Guardar':'Agregar persona')+'</button>'+
     (id&&puede('validador')?'<button class="btn ghost peligro" style="width:100%;margin-top:6px" id="tDel">Quitar de la instalación</button>':''));
   $('tRut').addEventListener('input', function(){ var v = this.value; $('tRutMsg').innerHTML = v.replace(/[^0-9kK]/g,'').length<7 ? '' : rutValido(v) ? '<span class="ok">RUT válido: '+formatoRut(v)+'</span>' : '<span class="bad">RUT no válido</span>'; });
   $('tOk').onclick = function(){
-    var d = {id:id||null, centro:cfg.centro, nombre:$('tNom').value.trim(), rut:$('tRut').value.trim(), puesto:$('tPue').value, fechaContratacion:$('tFec').value, direccion:$('tDir').value.trim()};
+    var d = {id:id||null, centro:cfg.centro, nombre:$('tNom').value.trim(), rut:$('tRut').value.trim(), puesto:$('tPue').value, fechaContratacion:$('tFec').value, direccion:x.direccion||''};
     if (d.nombre.split(/\s+/).length<2) return toast('Escribe nombre y apellido.');
     if (!rutValido(d.rut)) return toast('Revisa el RUT.');
     if (!d.puesto) return toast('Elige el puesto.');
     d.rut = formatoRut(d.rut); busy(true,'Guardando…');
     run('guardarTrabajador', d).then(function(r){ busy(false); cerrarSheet(); cargar('personal');
-      toast(id?'Datos guardados.':'Persona agregada.', 5000, id?null:'Generar documentos', id?null:function(){ setTimeout(function(){ abrirDocumentos([r.id]); }, 800); }); })
+      toast(id?'Datos guardados.':'Persona agregada.', 5000, id?null:'Documentos', id?null:function(){ setTimeout(function(){ abrirDocumentos([r.id]); }, 800); }); })
       .catch(function(e){ busy(false); toast(e.message); });
   };
   if ($('tDel')) $('tDel').onclick = function(){ busy(true,'Quitando…'); run('eliminarTrabajador', id).then(function(){ busy(false); cerrarSheet(); cargar('personal'); toast('Persona quitada.'); }).catch(function(e){ busy(false); toast(e.message); }); };
 }
-/** Genera la carpeta (PDF) de una o varias personas. Sin IA: usa la IRL guardada del puesto. */
+/** Documentos de una o varias personas: PDF para imprimir y firmar a mano, y Word para editar. */
 function abrirDocumentos(ids){
-  if (enDemo()) return versionCompleta('Generar los documentos de la carpeta del trabajador');
-  var D = datos.personal || {personas:[], puestos:[]}, varios = !ids;
+  if (enDemo()) return versionCompleta('Generar los documentos de las personas trabajadoras');
+  var D = datos.personal || {personas:[], puestos:[], eppCatalogo:{}}, varios = !ids;
   var personas = varios ? D.personas : D.personas.filter(function(p){ return ids.indexOf(p.id)>=0; });
-  var sinFicha = function(p){ return !D.puestos.some(function(k){ return k.puesto===p.puesto && k.ficha; }); };
-  if (!varios && personas[0] && sinFicha(personas[0])) { toast('Primero prepara la ficha del puesto '+personas[0].puesto+'.', 5000, 'Preparar', function(){ abrirFichaPuesto(personas[0].puesto); }); return; }
+  var puestoDe = function(p){ return D.puestos.filter(function(k){ return k.puesto===p.puesto; })[0] || {pts:[], epp:[]}; };
+  var sinFicha = function(p){ return !puestoDe(p).ficha; };
+  var uno = !varios && personas[0], pu = uno ? puestoDe(uno) : null;
+  var pend = uno ? pendientesDe(uno) : ['irl','ri','cap','epp'];
+  if (!pend.length) pend = ['irl','ri','cap','epp'];
   var hoy = new Date(), iso = hoy.getFullYear()+'-'+('0'+(hoy.getMonth()+1)).slice(-2)+'-'+('0'+hoy.getDate()).slice(-2);
-  abrirSheet(cabecera(varios?'Documentos de varias personas':'Documentos de '+esc(personas[0].nombre))+
-    (varios?'<p class="muted" style="margin-top:0">Marca a las personas. Las de puestos sin ficha preparada no se pueden marcar.</p>'+personas.map(function(p){
-      var no = sinFicha(p); return '<label class="chk" style="margin:6px 0'+(no?';opacity:.5':'')+'"><input type="checkbox" class="dcP" value="'+p.id+'"'+(no?' disabled':' checked')+'><span>'+esc(p.nombre)+'<br><span class="muted">'+esc(p.puesto)+(no?', ficha por preparar':'')+'</span></span></label>'; }).join('') : '')+
-    lab('Documentos')+modulosVisibles().map(function(m){ return '<label class="chk" style="margin:6px 0"><input type="checkbox" class="dcM" value="'+m[0]+'" checked><span>'+m[1]+'</span></label>'; }).join('')+
-    lab('Fecha de los documentos', 'Fecha de actualización y de entrega que aparece en los documentos.')+'<input type="date" id="dcFec" value="'+iso+'">'+
-    '<label class="chk"><input type="checkbox" id="dcEnv"><span>Enviarme también los PDF por correo</span></label>'+
-    '<p class="muted">Se guardan en la carpeta Trabajadores de la instalación, en Drive. Imprímelos para la firma y huella de cada persona.</p>'+
-    '<button class="btn" id="dcOk">'+ico('firma')+'Generar PDF</button>');
+  var cat = D.eppCatalogo || {};
+  var h = cabecera(varios?'Documentos de varias personas':'Documentos de '+esc(uno.nombre));
+  if (uno) h += '<p class="muted" style="margin-top:0">'+esc(uno.puesto)+' · RUT '+esc(uno.rut)+'</p><div class="pills" style="margin-bottom:8px">'+estadoDocs(uno)+'</div>';
+  if (varios) h += '<p class="muted" style="margin-top:0">Marca a las personas. Las de puestos sin ficha solo pueden recibir el reglamento interno y la entrega de EPP.</p>'+personas.map(function(p){
+      return '<label class="chk" style="margin:6px 0"><input type="checkbox" class="dcP" value="'+p.id+'" checked><span>'+esc(p.nombre)+'<br><span class="muted">'+esc(p.puesto)+(sinFicha(p)?', ficha por preparar':'')+'</span></span></label>'; }).join('');
+  if (uno && sinFicha(uno)) h += '<div class="note warn">Para la IRL y la difusión de PTS primero prepara la ficha del puesto. <button class="chip" id="dcFicha">Preparar ficha</button></div>';
+  h += lab('Documentos')+MODULOS_TODOS.map(function(m){
+    var dis = uno && sinFicha(uno) && (m[0]==='irl'||m[0]==='cap');
+    return '<label class="chk" style="margin:6px 0'+(dis?';opacity:.5':'')+'"><input type="checkbox" class="dcM" value="'+m[0]+'"'+(!dis&&pend.indexOf(m[0])>=0?' checked':'')+(dis?' disabled':'')+'><span><b>'+m[1]+'</b><br><span class="muted">'+m[2]+'</span></span></label>'; }).join('');
+  h += '<div id="dcIrl">'+lab('Oportunidad de la IRL','Art. 15 DS 44: antes de iniciar las labores y cada vez que cambien el proceso, las tecnologías, los materiales o las sustancias.')+
+    '<select id="dcMot">'+MOTIVOS_IRL.map(function(m){ return '<option value="'+m[0]+'"'+((uno&&uno.irlDesactualizada&&m[0]==='matriz')||(!(uno&&uno.irlDesactualizada)&&m[0]==='ingreso')?' selected':'')+'>'+m[1]+'</option>'; }).join('')+'</select></div>';
+  if (uno && pu.pts.length) h += '<div id="dcPts">'+lab('Procedimientos para difundir','Un registro de 1 hora por cada procedimiento marcado.')+pu.pts.map(function(p){
+      var hecho = uno.estado && uno.estado.cap && uno.estado.cap[p];
+      return '<label class="chk" style="margin:4px 0"><input type="checkbox" class="dcPt" value="'+esc(p)+'"'+(hecho?'':' checked')+'><span>'+esc(p)+(hecho?' <span class="muted">(difundido el '+fecha(hecho)+')</span>':'')+'</span></label>'; }).join('')+'</div>';
+  if (uno) {
+    var eppL = pu.epp || [];
+    h += '<div id="dcEpp">'+lab('EPP que se entregan','Marca, modelo y certificación (N° ISP o norma). Se recuerdan para las próximas entregas.')+
+      (eppL.length ? eppL.map(function(e, i){ var c = cat[e.toLowerCase()] || {};
+        return '<div class="card" style="padding:10px;margin:6px 0"><label class="chk" style="margin:0"><input type="checkbox" class="dcE" data-i="'+i+'" checked><span><b>'+esc(e)+'</b></span></label>'+
+          '<div class="row" style="margin-top:6px"><div><input type="text" class="dcEm" data-i="'+i+'" placeholder="Marca / modelo" value="'+esc(c.marca||'')+'"></div><div><input type="text" class="dcEc" data-i="'+i+'" placeholder="Certificación" value="'+esc(c.cert||'')+'"></div></div></div>'; }).join('')
+        : '<p class="muted">Este puesto no tiene EPP en la matriz ni en la ficha. Agrégalos en la ficha del puesto.</p>')+'</div>';
+  }
+  h += lab('Fecha de los documentos')+'<input type="date" id="dcFec" value="'+iso+'">'+
+    '<label class="chk"><input type="checkbox" id="dcWord" checked><span>Crear también en Word (para editar)</span></label>'+
+    '<label class="chk"><input type="checkbox" id="dcEnv"><span>Enviármelos por correo</span></label>'+
+    '<p class="muted">Quedan en Drive, en la carpeta Trabajadores de la instalación. Imprime los PDF para firmarlos a mano.</p>'+
+    '<button class="btn" id="dcOk">'+ico('firma')+'Generar documentos</button>';
+  abrirSheet(h);
+  if ($('dcFicha')) $('dcFicha').onclick = function(){ cerrarSheet(); abrirFichaPuesto(uno.puesto); };
+  var mostrar = function(){ var sel = function(m){ var c = document.querySelector('.dcM[value="'+m+'"]'); return c && c.checked; };
+    if ($('dcIrl')) $('dcIrl').classList.toggle('hidden', !sel('irl')); if ($('dcPts')) $('dcPts').classList.toggle('hidden', !sel('cap')); if ($('dcEpp')) $('dcEpp').classList.toggle('hidden', !sel('epp')); };
+  document.querySelectorAll('.dcM').forEach(function(c){ c.onchange = mostrar; }); mostrar();
   $('dcOk').onclick = function(){
     var mods = Array.from(document.querySelectorAll('.dcM')).filter(function(c){return c.checked;}).map(function(c){return c.value;});
     var lista = varios ? Array.from(document.querySelectorAll('.dcP')).filter(function(c){return c.checked;}).map(function(c){return c.value;}) : ids;
     if (!mods.length) return toast('Marca al menos un documento.');
     if (!lista.length) return toast('Marca al menos una persona.');
-    var fec = $('dcFec').value, env = $('dcEnv').checked, hechos = [], n = 0;
-    cerrarSheet();
+    var extra = {fecha:$('dcFec').value, motivo:$('dcMot').value, word:$('dcWord').checked, enviar:$('dcEnv').checked};
+    if (uno && $('dcPts')) { extra.pts = Array.from(document.querySelectorAll('.dcPt')).filter(function(c){return c.checked;}).map(function(c){return c.value;}); if (mods.indexOf('cap')>=0 && !extra.pts.length) return toast('Marca al menos un procedimiento.'); }
+    if (uno && mods.indexOf('epp')>=0) extra.eppDatos = (pu.epp||[]).map(function(e, i){
+      var on = document.querySelector('.dcE[data-i="'+i+'"]'); if (!on || !on.checked) return null;
+      return {epp:e, marca:document.querySelector('.dcEm[data-i="'+i+'"]').value.trim(), cert:document.querySelector('.dcEc[data-i="'+i+'"]').value.trim()}; }).filter(Boolean);
+    if (uno && mods.indexOf('epp')>=0 && !extra.eppDatos.length) return toast('Marca al menos un EPP.');
+    var hechos = [], n = 0, errores = [];
+    cerrarSheet(); pedirPermisoAvisos();
     lista.reduce(function(p, id){ return p.then(function(){
       var per = D.personas.filter(function(k){return k.id===id;})[0] || {};
-      busy(true, lista.length>1 ? 'Generando documentos '+(n+1)+' de '+lista.length : 'Generando documentos', per.nombre||''); progTramo(n/lista.length*100, (n+1)/lista.length*100, 12);
-      return run('generarDocumentos', {trabajadorId:id, modulos:mods, fecha:fec, enviar:env}).then(function(r){ n++; hechos.push({nombre:per.nombre, url:r.url}); });
+      var m = mods.filter(function(x){ return !(sinFicha(per) && (x==='irl'||x==='cap')); });
+      if (!m.length) { errores.push(per.nombre+': falta la ficha del puesto'); n++; return; }
+      busy(true, lista.length>1 ? 'Generando documentos '+(n+1)+' de '+lista.length : 'Generando documentos', (per.nombre||'')+(extra.word?'. El Word toma unos segundos más.':'')); progTramo(n/lista.length*100, (n+1)/lista.length*100, extra.word?25:12);
+      return run('generarDocumentos', Object.assign({trabajadorId:id, modulos:m}, extra)).then(function(r){ n++; hechos.push({nombre:per.nombre, archivos:r.archivos||[]}); })
+        .catch(function(e){ n++; errores.push((per.nombre||'')+': '+e.message); });
     }); }, Promise.resolve()).then(function(){
-      busy(false); cargar('personal'); avisar('Documentos listos', hechos.length+(hechos.length===1?' carpeta generada':' carpetas generadas'), 'docs');
-      abrirSheet('<div style="text-align:center;padding:6px 4px"><div class="okbig">'+ico('ok')+'</div><h2>Documentos listos</h2><p class="muted">'+hechos.length+(hechos.length===1?' carpeta generada':' carpetas generadas')+(env?' y enviadas a tu correo':'')+'.</p></div>'+
-        '<div class="list">'+hechos.map(function(x){ return '<a class="li" href="'+esc(x.url)+'" target="_blank" rel="noopener" style="text-decoration:none"><span class="tx"><b>'+esc(x.nombre)+'</b><span>Abrir PDF</span></span><span class="chev">'+ico('chev')+'</span></a>'; }).join('')+'</div>'+
+      busy(false); cargar('personal'); cargar('cumpl');
+      if (!hechos.length) return toast(errores.join(' · ') || 'No se generaron documentos.', 8000);
+      avisar('Documentos listos', hechos.length===1 ? 'Documentos de '+hechos[0].nombre : hechos.length+' personas con sus documentos', 'docs');
+      abrirSheet('<div style="text-align:center;padding:6px 4px"><div class="okbig">'+ico('ok')+'</div><h2>Documentos listos</h2><p class="muted">Imprime los PDF para firmarlos a mano'+(extra.enviar?'. También los enviamos a tu correo':'')+'.</p></div>'+
+        (errores.length?'<div class="note warn">'+errores.map(esc).join('<br>')+'</div>':'')+
+        hechos.map(function(x){ return '<div class="sec-t">'+esc(x.nombre)+'</div><div class="list">'+x.archivos.map(function(a){
+          return '<div class="li"><span class="tx"><b>'+esc(a.titulo)+'</b>'+(a.errorWord?'<span class="muted">'+esc(a.errorWord)+'</span>':'')+'</span>'+
+            '<a class="chip" href="'+esc(a.pdf)+'" target="_blank" rel="noopener">PDF</a>'+(a.word?'<a class="chip" href="'+esc(a.word)+'" target="_blank" rel="noopener">Word</a>':'')+'</div>'; }).join('')+'</div>'; }).join('')+
         '<button class="btn" onclick="cerrarSheet()">Listo</button>');
-    }).catch(function(e){ busy(false); cargar('personal'); toast((n?n+' generada(s). ':'')+e.message, 7000); });
+    });
   };
 }
 
@@ -3643,7 +3698,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<13) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
+    if (!c.version || c.version<14) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
     else toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -3987,7 +4042,7 @@ function init2(){
     run('getConfig').then(function(c){
       aplicarConfig(c);
       if (init.enlace) toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<13)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<14)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
       else if (!c.tieneClave && puede('admin') && !(c.usuario||{}).tieneClaveGemini) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       if (!abrirUnico()) render(true);
@@ -4046,8 +4101,8 @@ var Demo = (function(){
     eliminarCuenta: function(){ return {ok:true}; }, guardarPerfil: function(){ return {ok:true}; }, cambiarClave: function(){ return {token:''}; },
     listarPersonal: function(c){ var ps = []; DB.tareas.filter(centro(c)).forEach(function(t){ if (ps.indexOf(t.puesto)<0) ps.push(t.puesto); });
       DB.puestos = DB.puestos || {}; DB.trab = DB.trab || [];
-      return {puestos:ps.map(function(p){ var f = DB.puestos[c+'|'+p]; return {puesto:p, ficha:!!f, actualizada:f?f.fecha:''}; }),
-        personas:DB.trab.filter(centro(c)).map(function(x){ return Object.assign({}, x); })}; },
+      return {puestos:ps.map(function(p){ var f = DB.puestos[c+'|'+p]; return {puesto:p, ficha:!!f, actualizada:f?f.fecha:'', pts:[], epp:[]}; }), eppCatalogo:{},
+        personas:DB.trab.filter(centro(c)).map(function(x){ return Object.assign({estado:{}}, x); })}; },
     fichaPuesto: function(c, p, regen){ DB.puestos = DB.puestos || {}; var g = DB.puestos[c+'|'+p];
       if (g && !regen) return Object.assign({}, g.ficha, {guardada:true});
       var ts = DB.tareas.filter(centro(c)).filter(function(t){ return t.puesto===p; }), epp = [];
