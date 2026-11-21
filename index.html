@@ -86,7 +86,7 @@
   .toggle{display:flex;background:var(--soft);border-radius:10px;padding:3px}
   .toggle button{flex:1;border:0;background:none;padding:9px;border-radius:8px;font:inherit;font-weight:700;color:var(--muted)}
   .toggle button.on{background:rgba(255,255,255,.13);color:var(--ink)}
-  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}.li .tx .chips{display:flex !important}.li .tx .chips .chip{display:inline-flex;padding:4px 10px;font-size:12.5px}
   .chip{border:1px solid var(--line2);background:rgba(255,255,255,.05);color:var(--ink);border-radius:99px;padding:7px 12px;font:inherit;font-size:13.5px;display:inline-flex;align-items:center;gap:6px}
   .chip svg.i{width:16px;height:16px}
   .chip.on{background:var(--act-soft);color:var(--act-ink);border-color:rgba(43,189,195,.45);font-weight:700}
@@ -1569,7 +1569,7 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '14.0';
+var VERSION_APP = '16.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -1725,7 +1725,7 @@ var COMUNAS = {"Arica y Parinacota":["Arica","Camarones","General Lagos","Putre"
 function opcionesComuna(region, actual){
   var L = (COMUNAS[region]||[]).slice();
   if (actual && L.indexOf(actual)<0) L.unshift(actual);
-  if (!region && !actual) return '<option value="">Primero elige la región</option>';
+  if (!region && !actual) return '<option value="">Elige la región</option>';
   return '<option value="">Elige la comuna</option>'+L.map(function(c){ return '<option'+(c===actual?' selected':'')+'>'+esc(c)+'</option>'; }).join('');
 }
 var TIPOS_EMPRESA = ['Empresa principal','Contratista','Subcontratista'];
@@ -1739,111 +1739,185 @@ function fSec(titulo, cuerpo, completos, total, abierto, clave){
   return '<details class="sec" data-sec="'+clave+'"'+(abierto?' open':'')+'><summary>'+titulo+'<span class="muted">'+completos+' de '+total+'</span></summary><div class="cu">'+cuerpo+'</div></details>';
 }
 /** Ficha del centro de trabajo: datos de la empresa, del centro, de las personas y de la organización preventiva. */
+/** Campos de la EMPRESA: se escriben una vez y se comparten entre sus instalaciones. */
+var CAMPOS_EMPRESA = ['giro','codigoActividad','representanteLegal','rutRepresentante','organismo'];
+/** Otra instalación tuya de la misma empresa (para copiar sus datos). */
+function hermanaDe(rs, idExcluir){
+  var k = String(rs||'').trim().toLowerCase(); if (!k) return null;
+  return (SRV.centros||[]).filter(function(c){ return c.id!==idExcluir && String(c.razonSocial||'').trim().toLowerCase()===k; })
+    .sort(function(a,b){ return Object.keys(b.ficha||{}).length - Object.keys(a.ficha||{}).length; })[0] || null;
+}
+/** Botones para tocar (una sola opción). */
+function chipsSel(id, opciones, valor){
+  return '<input type="hidden" id="'+id+'" value="'+esc(valor||'')+'"><div class="chips" data-cs="'+id+'">'+opciones.map(function(o){
+    var v = o[0], t = o[1]; return '<button type="button" class="chip'+(v===valor?' on':'')+'" data-csv="'+esc(v)+'">'+esc(t)+'</button>'; }).join('')+'</div>';
+}
+function activarChipsSel(raiz){
+  raiz.querySelectorAll('[data-cs]').forEach(function(g){ g.querySelectorAll('[data-csv]').forEach(function(b){ b.onclick = function(){
+    var inp = $(g.dataset.cs), v = b.dataset.csv; inp.value = inp.value===v ? '' : v; // tocar de nuevo deja sin indicar
+    g.querySelectorAll('[data-csv]').forEach(function(x){ x.classList.toggle('on', x.dataset.csv===inp.value); }); }; }); });
+}
+function hoyIso(){ var d = new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+
 function abrirCentro(nombre, seccion){
   if (enDemo() && !nombre && (SRV.centros||[]).length >= LIMITES_DEMO.instalaciones) return versionCompleta('Registrar más de una instalación');
-  var c = nombre ? centroInfo(nombre) : null, x = c || {razonSocial:'', rutEmpresa:'', nombre:'', direccion:'', ceal:'Sin evaluar', ficha:{}};
-  var f = x.ficha || {}, rsList = Array.from(new Set((SRV.centros||[]).map(function(k){return k.razonSocial;})));
+  var c = nombre ? centroInfo(nombre) : null;
+  if (!c) return nuevaInstalacion();
+  var x = c, f = x.ficha || {}, rsList = Array.from(new Set((SRV.centros||[]).map(function(k){return k.razonSocial;})));
   var n = function(arr){ return arr.filter(function(v){ return String(v||'').trim(); }).length; };
   var logoNuevo; // undefined: sin cambios · null: quitar · {mime,data}: nuevo
-  var abierta = seccion || (c ? '' : 'empresa');
-  var h = cabecera(c ? 'Ficha de la instalación' : 'Nueva instalación')+
-    '<p class="muted" style="margin-top:0">'+(c?'Estos datos aparecen en la hoja "Datos del centro" del Excel y se usan para revisar el cumplimiento.':'Solo la razón social y el nombre de la instalación son obligatorios. El resto lo puedes completar después.')+'</p>';
+  var abierta = seccion || '';
+  var otras = (SRV.centros||[]).filter(function(k){ return k.id!==c.id && String(k.razonSocial||'').trim().toLowerCase()===String(x.razonSocial||'').trim().toLowerCase(); }).length;
+  var h = cabecera('Ficha de la instalación')+
+    '<p class="muted" style="margin-top:0">Estos datos aparecen en la hoja "Datos del centro" de la matriz y en los documentos. Completa lo que falte cuando puedas.</p>';
+  // 1. Empresa (compartida)
   h += fSec('Empresa',
+    (otras ? '<div class="note" style="margin:12px 0 0">Estos datos y el logo se comparten con tus otras '+otras+' instalación(es) de esta empresa: si los cambias aquí, se actualizan en todas.</div>' : '')+
     lab('Razón social', 'Nombre legal de la entidad empleadora, tal como figura en el SII. Todas sus instalaciones quedan agrupadas bajo este nombre.')+
       '<input type="text" id="cRs" list="dlRs" value="'+esc(x.razonSocial)+'" autocomplete="off"><datalist id="dlRs">'+rsList.map(function(r){return '<option value="'+esc(r)+'">';}).join('')+'</datalist>'+
-    fCampo('cRut', 'RUT de la empresa', x.rutEmpresa, 'RUT de la entidad empleadora. La app revisa que el dígito verificador sea correcto.', ' inputmode="text"')+
-    fCampo('fGiro', 'Actividad económica', f.giro, 'Giro principal de la empresa según el SII. Ayuda a ubicar el contexto de los riesgos y aparece en la ficha del Excel.')+
-    fCampo('fCodAct', 'Código de actividad SII', f.codigoActividad, 'Código numérico de la actividad económica. Es opcional.', ' inputmode="numeric"')+
-    fCampo('fRep', 'Representante legal', f.representanteLegal, 'Nombre completo de quien representa legalmente a la empresa.')+
-    fCampo('fRutRep', 'RUT del representante legal', f.rutRepresentante, '')+
-    fSel('fOrg', 'Organismo administrador', f.organismo, ORGANISMOS, 'Mutualidad o instituto al que la empresa está adherida para el seguro de la Ley 16.744. Es quien asesora y recibe las denuncias de accidentes.')+
-    fSel('fTipoEmp', 'Tipo de empresa en esta instalación', f.tipoEmpresa, TIPOS_EMPRESA, 'Empresa principal (mandante): dueña de la obra, faena o servicio. Contratista o subcontratista: trabaja en instalaciones de una empresa principal (Ley 20.123). La IA considera los riesgos por interacción con otras empresas.')+
-    '<div id="fMandanteBox"'+(f.tipoEmpresa && f.tipoEmpresa!=='Empresa principal'?'':' class="hidden"')+'>'+fCampo('fMandante', 'Empresa principal (mandante)', f.mandante, 'Razón social de la empresa para la que se prestan los servicios.')+'</div>',
-    n([x.razonSocial,x.rutEmpresa,f.giro,f.codigoActividad,f.representanteLegal,f.rutRepresentante,f.organismo,f.tipoEmpresa]), 8, abierta==='empresa', 'empresa');
+    fCampo('cRut', 'RUT de la empresa', x.rutEmpresa, 'La app revisa que el dígito verificador sea correcto.', ' inputmode="text"')+
+    fCampo('fGiro', 'Actividad económica (giro)', f.giro, 'Giro principal según el SII. Ayuda a la IA a ubicar el contexto de los riesgos.')+
+    '<div class="row"><div>'+fCampo('fRep', 'Representante legal', f.representanteLegal, '')+'</div><div>'+fCampo('fRutRep', 'Su RUT', f.rutRepresentante, '')+'</div></div>'+
+    fSel('fOrg', 'Organismo administrador', f.organismo, ORGANISMOS, 'Mutualidad o instituto al que la empresa está adherida (Ley 16.744).')+
+    lab('Logo de la empresa', 'Se usa en la matriz y en los documentos de las personas trabajadoras.')+
+    '<div id="cLogoPrev" style="margin-bottom:10px">'+(x.tieneLogo?'<span class="st st-Verificada">Logo cargado</span>':'<span class="muted">Sin logo</span>')+'</div>'+
+    '<div class="row"><label class="btn sec" style="margin:0">'+(x.tieneLogo?'Cambiar logo':'Subir logo')+'<input type="file" id="cLogo" accept="image/*" class="hidden"></label>'+
+    (x.tieneLogo?'<button class="btn ghost peligro" id="cLogoQuitar" type="button">Quitar</button>':'')+'</div>',
+    n([x.razonSocial,x.rutEmpresa,f.giro,f.representanteLegal,f.organismo,x.tieneLogo?'x':'']), 6, abierta==='empresa'||abierta==='logo', 'empresa');
+  // 2. Instalación
   h += fSec('Instalación',
-    fCampo('cNom', 'Nombre de la instalación', x.nombre, 'Cómo identificas esta instalación dentro de la empresa. Debe ser distinto de tus otras instalaciones.')+
-    fSel('fRegion', 'Región', f.region, REGIONES, 'Al elegir la región se muestran sus comunas.')+
-    lab('Comuna')+'<select id="fComuna">'+opcionesComuna(f.region, f.comuna)+'</select>'+
-    fCampo('cDir', 'Dirección', x.direccion, 'Calle y número de la instalación.')+
-    fSel('fJorTipo', 'Horario de trabajo', f.jornadaTipo, JORNADAS, 'Diurna: se trabaja de día. Nocturna: se trabaja de noche (entre las 21:00 y las 07:00). Mixta: hay trabajo de día y de noche. Influye en los riesgos de fatiga y psicosociales.')+
-    fSel('fTurnos', 'Turnos', f.turnos, TURNOS, 'Turno fijo: cada persona trabaja siempre en el mismo horario. Turnos rotativos: las personas van cambiando de horario (por ejemplo, semana de día y semana de noche).')+
-    fCampo('fJornada', 'Detalle del horario (opcional)', f.jornada, 'Por ejemplo: lunes a viernes de 08:00 a 17:30, o sistema 4x4 de 12 horas.')+
-    lab('Fecha de la visita o levantamiento', 'Día en que recorriste la instalación para hacer la evaluación. Aparece en la ficha del Excel.')+'<input type="date" id="fVisita" value="'+esc(f.fechaVisita||'')+'">',
-    n([x.nombre,x.direccion,f.comuna,f.region,f.jornadaTipo,f.turnos,f.fechaVisita]), 7, abierta==='centro', 'centro');
-  h += fSec('Personas trabajadoras',
-    '<p class="muted" style="margin:12px 0 0">Total de la instalación, no de un puesto. Aparece en la hoja "Datos del centro" de la matriz.</p>'+
+    fCampo('cNom', 'Nombre de la instalación', x.nombre, 'Debe ser distinto de tus otras instalaciones.')+
+    '<div class="row"><div>'+fSel('fRegion', 'Región', f.region, REGIONES, '')+'</div><div>'+lab('Comuna')+'<select id="fComuna">'+opcionesComuna(f.region, f.comuna)+'</select></div></div>'+
+    fCampo('cDir', 'Dirección', x.direccion, 'Calle y número.')+
+    lab('En esta instalación la empresa es', 'Contratista o subcontratista: trabaja en instalaciones de una empresa principal (Ley 20.123). La IA considera los riesgos por interacción con otras empresas.')+
+      chipsSel('fTipoEmp', TIPOS_EMPRESA.map(function(t){ return [t,t]; }), f.tipoEmpresa)+
+    '<div id="fMandanteBox"'+(f.tipoEmpresa && f.tipoEmpresa!=='Empresa principal'?'':' class="hidden"')+'>'+fCampo('fMandante', 'Empresa principal (mandante)', f.mandante, '')+'</div>'+
+    lab('Fecha de la visita o levantamiento')+'<input type="date" id="fVisita" value="'+esc(f.fechaVisita||hoyIso())+'">',
+    n([x.nombre,f.region,f.comuna,x.direccion,f.tipoEmpresa]), 5, abierta==='centro', 'centro');
+  // 3. Personas y horario
+  var regPersonal = (datos.personal && cfg.centro===c.id) ? datos.personal.personas.length : 0;
+  h += fSec('Personas y horario',
+    '<p class="muted" style="margin:12px 0 0">Total de personas trabajadoras de la instalación.'+(regPersonal?' En Personal tienes '+regPersonal+' registrada(s).':'')+'</p>'+
     '<div class="row"><div>'+lab('Hombres')+'<input type="number" min="0" inputmode="numeric" id="fH" value="'+esc(f.nHombres||'')+'"></div>'+
     '<div>'+lab('Mujeres')+'<input type="number" min="0" inputmode="numeric" id="fM" value="'+esc(f.nMujeres||'')+'"></div>'+
-    '<div>'+lab('Otras', 'Personas que no se identifican como hombre ni mujer. Déjalo vacío si no aplica.')+'<input type="number" min="0" inputmode="numeric" id="fO" value="'+esc(f.nOtros||'')+'"></div></div>',
-    (f.nHombres||f.nMujeres||f.nOtros)?1:0, 1, abierta==='personas', 'personas');
-  var sn = ['Sí','No','No aplica'];
-  h += fSec('Experto/a en prevención y CEAL-SM',
-    fCampo('fAsesor', 'Experto/a en prevención de riesgos', f.asesorNombre, 'Quien asesora en prevención a esta instalación. Si lo dejas vacío, en la matriz se usan tus datos de Mi cuenta.')+
-    fCampo('fRegistro', 'N° de registro SEREMI', f.asesorRegistro, 'Número de inscripción del experto/a en prevención de riesgos ante la SEREMI de Salud: letras, barra, número y -P. Por ejemplo: AB/ 1234-P.', ' placeholder="Ej: AB/ 1234-P" autocapitalize="characters" autocomplete="off" data-registro')+
-    lab('Resultado CEAL-SM', 'Resultado del cuestionario de riesgos psicosociales (SUSESO) para esta instalación. Con él se valoran los riesgos psicosociales de la matriz.')+
-      '<select id="cCeal">'+CEAL_OPC.map(function(o){return '<option'+(o===(x.ceal||'Sin evaluar')?' selected':'')+'>'+o+'</option>';}).join('')+'</select>',
-    n([f.asesorNombre,f.asesorRegistro,(x.ceal&&x.ceal!=='Sin evaluar')?'x':'']), 3, abierta==='org', 'org');
+    '<div>'+lab('Otras', 'Personas que no se identifican como hombre ni mujer.')+'<input type="number" min="0" inputmode="numeric" id="fO" value="'+esc(f.nOtros||'')+'"></div></div>'+
+    lab('Horario', 'Nocturna: se trabaja entre las 21:00 y las 07:00. Mixta: de día y de noche.')+chipsSel('fJorTipo', [['Diurna','Diurna'],['Nocturna','Nocturna'],['Mixta (diurna y nocturna)','Mixta']], f.jornadaTipo)+
+    lab('Turnos', 'Fijo: siempre el mismo horario. Rotativo: las personas van cambiando de horario.')+chipsSel('fTurnos', [['Sin turnos','Sin turnos'],['Turno fijo','Fijo'],['Turnos rotativos','Rotativo']], f.turnos)+
+    '<details style="margin-top:10px"'+(f.jornada?' open':'')+'><summary class="muted">Agregar detalle del horario (opcional)</summary>'+
+      '<input type="text" id="fJornada" style="margin-top:6px" value="'+esc(f.jornada||'')+'" placeholder="Ej: lunes a viernes 08:00 a 17:30, o sistema 4x4"></details>',
+    n([(f.nHombres||f.nMujeres||f.nOtros)?'x':'', f.jornadaTipo, f.turnos]), 3, abierta==='personas', 'personas');
+  // 4. Responsables (una sola lista)
   h += fSec('Responsables de las medidas',
-    '<p class="muted" style="margin:12px 0 0">Aparecen en el programa de trabajo y en la matriz, con el nombre primero y luego el cargo.</p>'+
-    '<div class="row"><div>'+fCampo('cEjN', 'Ejecución: nombre', x.respEjecNombre, 'Persona que, por defecto, implementa las medidas. Si lo dejas vacío se usa "Representante Legal".')+'</div>'+
-    '<div>'+fCampo('cEjC', 'Cargo', x.respEjecCargo, '')+'</div></div>'+
-    '<div class="row"><div>'+fCampo('cSgN', 'Seguimiento: nombre', x.respSegNombre, 'Persona que revisa que las medidas se cumplan en plazo.')+'</div>'+
-    '<div>'+fCampo('cSgC', 'Cargo', x.respSegCargo, '')+'</div></div>'+
-    lab('Otras personas que ejecutan medidas', 'Personas que pueden quedar a cargo de ejecutar medidas. Al revisar cada riesgo o en Medidas eliges quién ejecuta cada medida; si no eliges, se usa el responsable de ejecución de arriba.')+
+    '<p class="muted" style="margin:12px 0 0">Personas que pueden quedar a cargo de las medidas. Marca quién <b>ejecuta</b> por defecto y quién hace el <b>seguimiento</b>.</p>'+
     '<div id="cRespList"></div><div class="row" style="margin-top:8px"><div><input type="text" id="cRpN" placeholder="Nombre" autocomplete="off"></div><div><input type="text" id="cRpC" placeholder="Cargo" autocomplete="off"></div></div>'+
     '<button class="btn sec" style="margin-top:8px" id="cRpAdd" type="button">'+ico('mas')+'Agregar persona</button>',
-    n([x.respEjecNombre,x.respEjecCargo,x.respSegNombre,x.respSegCargo]), 4, abierta==='resp', 'resp');
-  h += fSec('Logo de la empresa',
-    '<p class="muted" style="margin:12px 0 10px">Se usa en el Excel y en los PDF de esta instalación. Si no subes uno, se usa el logo general de la app.</p>'+
-    '<div id="cLogoPrev" style="margin-bottom:10px">'+(x.tieneLogo?'<span class="st st-Verificada">Logo cargado</span>':'<span class="muted">Sin logo propio</span>')+'</div>'+
-    '<div class="row"><label class="btn sec" style="margin:0">'+(x.tieneLogo?'Cambiar logo':'Subir logo')+'<input type="file" id="cLogo" accept="image/*" class="hidden"></label>'+
-    (x.tieneLogo?'<button class="btn ghost peligro" id="cLogoQuitar">Quitar</button>':'')+'</div>',
-    x.tieneLogo?1:0, 1, abierta==='logo', 'logo');
-  if (c && c.carpeta) h += '<p style="margin:14px 0 4px"><a href="'+esc(c.carpeta)+'" target="_blank" rel="noopener">Abrir la carpeta de la instalación en Drive</a></p>';
-  if (c && puede('admin')) h += '<button class="btn ghost peligro" style="width:100%;margin-bottom:6px" id="cDel" type="button">'+ico('borrar')+'Eliminar esta instalación</button>';
-  h += '<p class="muted">'+(c?'Puedes cambiar el nombre: sus tareas y medidas se mantienen.':'Se creará la carpeta Razón social / Instalación en Drive, con subcarpetas para matrices, evidencias y firmas.')+'</p>'+
-    '<button class="btn" id="cOk">'+(c?'Guardar ficha':'Registrar instalación')+'</button>';
+    n([x.respEjecNombre, x.respSegNombre]), 2, abierta==='resp', 'resp');
+  // 5. CEAL-SM
+  var yo = SRV.usuario || {}, otroExp = !!(f.asesorNombre && f.asesorNombre !== yo.nombre);
+  h += fSec('Evaluación psicosocial (CEAL-SM)',
+    '<div class="note" style="margin:12px 0 10px">Experto/a en prevención: <b>'+esc(yo.nombre||'')+'</b>'+(yo.registro?', Registro SEREMI '+esc(yo.registro):'')+
+      '.<br><span class="muted">Se toma de Mi cuenta para la matriz y los documentos.</span></div>'+
+    '<label class="chk"><input type="checkbox" id="fOtroExp"'+(otroExp?' checked':'')+'><span>Esta instalación la asesora otra persona</span></label>'+
+    '<div id="fOtroBox"'+(otroExp?'':' class="hidden"')+'>'+
+    fCampo('fAsesor', 'Nombre del experto/a que asesora', otroExp?f.asesorNombre:'', '')+
+    fCampo('fRegistro', 'Su N° de registro SEREMI', otroExp?f.asesorRegistro:'', 'Letras, barra, número y -P. Por ejemplo: AB/ 1234-P.', ' placeholder="Ej: AB/ 1234-P" autocapitalize="characters" autocomplete="off" data-registro')+'</div>'+
+    lab('Resultado CEAL-SM', 'Resultado del cuestionario de riesgos psicosociales (SUSESO). Con él se valoran los riesgos psicosociales de la matriz.')+
+      '<select id="cCeal">'+CEAL_OPC.map(function(o){return '<option'+(o===(x.ceal||'Sin evaluar')?' selected':'')+'>'+o+'</option>';}).join('')+'</select>',
+    n([(x.ceal&&x.ceal!=='Sin evaluar')?'x':'']), 1, abierta==='org', 'org');
+  if (c.carpeta) h += '<p style="margin:14px 0 4px"><a href="'+esc(c.carpeta)+'" target="_blank" rel="noopener">Abrir la carpeta de la instalación en Drive</a></p>';
+  if (puede('admin')) h += '<button class="btn ghost peligro" style="width:100%;margin-bottom:6px" id="cDel" type="button">'+ico('borrar')+'Eliminar esta instalación</button>';
+  h += '<button class="btn" id="cOk">Guardar ficha</button>';
   abrirSheet(h);
-  var resp = (x.responsables||[]).slice();
-  var pintarResp = function(){ $('cRespList').innerHTML = resp.length ? '<div class="list" style="margin:0">'+resp.map(function(p,i){
-      return '<div class="li"><span class="tx"><b>'+esc(p.nombre)+'</b><span>'+esc(p.cargo||'Sin cargo')+'</span></span><button class="x" type="button" data-qrp="'+i+'" aria-label="Quitar">×</button></div>'; }).join('')+'</div>' : '<p class="muted" style="margin:0">Aún no hay otras personas.</p>';
-    $('cRespList').querySelectorAll('[data-qrp]').forEach(function(b){ b.onclick = function(){ resp.splice(+b.dataset.qrp,1); pintarResp(); }; }); };
+  activarChipsSel($('sheet'));
+
+  // Responsables: una lista con roles
+  var personas = [], vistos = {};
+  var addP = function(nm, cg, rol){ nm = String(nm||'').trim(); if (!nm) return; var k = nm.toLowerCase();
+    if (vistos[k] != null){ var p = personas[vistos[k]]; if (rol) p[rol] = true; if (!p.cargo && cg) p.cargo = cg; return; }
+    vistos[k] = personas.length; var o = {nombre:nm, cargo:String(cg||'').trim(), ejec:false, seg:false}; if (rol) o[rol] = true; personas.push(o); };
+  addP(x.respEjecNombre, x.respEjecCargo, 'ejec'); addP(x.respSegNombre, x.respSegCargo, 'seg');
+  (x.responsables||[]).forEach(function(p){ addP(p.nombre, p.cargo); });
+  var pintarResp = function(){
+    $('cRespList').innerHTML = personas.length ? '<div class="list" style="margin:0">'+personas.map(function(p,i){
+      return '<div class="li"><span class="tx"><b>'+esc(p.nombre)+'</b><span>'+esc(p.cargo||'Sin cargo')+'</span><span class="chips" style="margin-top:6px">'+
+        '<button type="button" class="chip'+(p.ejec?' on':'')+'" data-rol="ejec" data-i="'+i+'">Ejecuta</button>'+
+        '<button type="button" class="chip'+(p.seg?' on':'')+'" data-rol="seg" data-i="'+i+'">Seguimiento</button></span></span>'+
+        '<button class="x" type="button" data-qrp="'+i+'" aria-label="Quitar">×</button></div>'; }).join('')+'</div>'
+      : '<p class="muted" style="margin:8px 0 0">Aún no hay personas. Si no marcas a nadie, la ejecución queda a cargo del "Representante Legal".</p>';
+    $('cRespList').querySelectorAll('[data-qrp]').forEach(function(b){ b.onclick = function(){ personas.splice(+b.dataset.qrp,1); vistos = {}; personas.forEach(function(p,i){ vistos[p.nombre.toLowerCase()] = i; }); pintarResp(); }; });
+    $('cRespList').querySelectorAll('[data-rol]').forEach(function(b){ b.onclick = function(){ var rol = b.dataset.rol, i = +b.dataset.i, ya = personas[i][rol];
+      personas.forEach(function(p){ p[rol] = false; }); personas[i][rol] = !ya; pintarResp(); }; });
+  };
   pintarResp();
   $('cRpAdd').onclick = function(){ var nn = $('cRpN').value.trim(), cc = $('cRpC').value.trim(); if (!nn) return toast('Escribe el nombre.'); if (!cc) return toast('Escribe el cargo.');
-    resp.push({nombre:nn, cargo:cc}); $('cRpN').value = ''; $('cRpC').value = ''; pintarResp(); };
-  if (seccion){ var sx = document.querySelector('[data-sec="'+seccion+'"]'); if (sx) setTimeout(function(){ sx.scrollIntoView({block:'start'}); }, 60); }
+    addP(nn, cc, personas.some(function(p){ return p.ejec; }) ? null : 'ejec'); $('cRpN').value = ''; $('cRpC').value = ''; pintarResp(); };
+
+  if (seccion){ var sx = document.querySelector('[data-sec="'+(seccion==='logo'?'empresa':seccion)+'"]'); if (sx) setTimeout(function(){ sx.scrollIntoView({block:'start'}); }, 60); }
   $('cLogo').onchange = function(){
     var file = this.files[0]; if (!file) return;
     procesarFoto(file, 360, true).then(function(img){ logoNuevo = {mime:img.mime, data:img.data};
-      $('cLogoPrev').innerHTML = '<img src="data:'+img.mime+';base64,'+img.data+'" alt="" style="max-height:60px;max-width:180px"> <span class="muted">Se guardará al tocar '+(c?'Guardar ficha':'Registrar instalación')+'</span>'; });
+      $('cLogoPrev').innerHTML = '<img src="data:'+img.mime+';base64,'+img.data+'" alt="" style="max-height:60px;max-width:180px"> <span class="muted">Se guardará al tocar Guardar ficha</span>'; });
   };
+  $('fOtroExp').onchange = function(){ $('fOtroBox').classList.toggle('hidden', !this.checked); };
   $('fRegion').onchange = function(){ $('fComuna').innerHTML = opcionesComuna(this.value, ''); };
-  $('fTipoEmp').onchange = function(){ $('fMandanteBox').classList.toggle('hidden', !this.value || this.value==='Empresa principal'); };
+  document.querySelectorAll('[data-cs="fTipoEmp"] [data-csv]').forEach(function(b){ b.addEventListener('click', function(){ var v = $('fTipoEmp').value; $('fMandanteBox').classList.toggle('hidden', !v || v==='Empresa principal'); }); });
   if ($('cDel')) $('cDel').onclick = function(){ confirmarEliminarCentro(c); };
   if ($('cLogoQuitar')) $('cLogoQuitar').onclick = function(){ logoNuevo = null; $('cLogoPrev').innerHTML = '<span class="muted">El logo se quitará al guardar.</span>'; };
   $('cOk').onclick = function(){
     var v = function(id){ return $(id).value.trim(); };
-    var d = {id:c?c.id:null, razonSocial:v('cRs'), rutEmpresa:v('cRut'), nombre:v('cNom'), direccion:v('cDir'), ceal:$('cCeal').value,
-      respEjecNombre:v('cEjN'), respEjecCargo:v('cEjC'), respSegNombre:v('cSgN'), respSegCargo:v('cSgC'),
-      ficha:{giro:v('fGiro'), codigoActividad:v('fCodAct'), representanteLegal:v('fRep'), rutRepresentante:v('fRutRep'), organismo:$('fOrg').value,
+    var ej = personas.filter(function(p){ return p.ejec; })[0] || {}, sg = personas.filter(function(p){ return p.seg; })[0] || {};
+    var d = {id:c.id, razonSocial:v('cRs'), rutEmpresa:v('cRut'), nombre:v('cNom'), direccion:v('cDir'), ceal:$('cCeal').value,
+      respEjecNombre:ej.nombre||'', respEjecCargo:ej.cargo||'', respSegNombre:sg.nombre||'', respSegCargo:sg.cargo||'',
+      responsables:personas.filter(function(p){ return !p.ejec && !p.seg; }).map(function(p){ return {nombre:p.nombre, cargo:p.cargo}; }),
+      ficha:{giro:v('fGiro'), representanteLegal:v('fRep'), rutRepresentante:v('fRutRep'), organismo:$('fOrg').value,
         comuna:v('fComuna'), region:$('fRegion').value, jornada:v('fJornada'), jornadaTipo:$('fJorTipo').value, turnos:$('fTurnos').value, fechaVisita:$('fVisita').value,
         tipoEmpresa:$('fTipoEmp').value, mandante:($('fTipoEmp').value && $('fTipoEmp').value!=='Empresa principal') ? v('fMandante') : '',
         nHombres:v('fH'), nMujeres:v('fM'), nOtros:v('fO'),
-        asesorNombre:v('fAsesor'), asesorRegistro:formatoRegistro(v('fRegistro'))}};
-    if (v('fRegistro') && !d.ficha.asesorRegistro){ var sx = document.querySelector('[data-sec="org"]'); if (sx) sx.open = true; $('fRegistro').focus(); return toast(MSG_REGISTRO, 6000); }
-    if (logoNuevo!==undefined) d.logo = logoNuevo;
-    d.responsables = resp;
+        asesorNombre:$('fOtroExp').checked?v('fAsesor'):'', asesorRegistro:$('fOtroExp').checked?formatoRegistro(v('fRegistro')):''}};
     var abrirSec = function(k){ var s0 = document.querySelector('[data-sec="'+k+'"]'); if (s0){ s0.open = true; s0.scrollIntoView({block:'start'}); } };
+    if ($('fOtroExp').checked && v('fRegistro') && !d.ficha.asesorRegistro){ abrirSec('org'); $('fRegistro').focus(); return toast(MSG_REGISTRO, 6000); }
+    if (logoNuevo!==undefined) d.logo = logoNuevo;
     if (!d.razonSocial){ abrirSec('empresa'); return toast('Escribe la razón social.'); }
     if (!d.nombre){ abrirSec('centro'); return toast('Escribe el nombre de la instalación.'); }
     if (d.rutEmpresa && !rutValido(d.rutEmpresa)){ abrirSec('empresa'); return toast('El RUT de la empresa no es válido.'); }
     if (d.ficha.rutRepresentante && !rutValido(d.ficha.rutRepresentante)){ abrirSec('empresa'); return toast('El RUT del representante legal no es válido.'); }
-    busy(true, c?'Guardando ficha…':'Registrando instalación…');
+    busy(true, 'Guardando ficha…');
     run('guardarCentro', d).then(function(r){
       busy(false); SRV.centros = r.centros; aplicarConfig({});
-      if (!c) elegirCentro(r.id);
-      else { cerrarSheet(); datos.cumpl = null; if (tab==='inicio') cargar('cumpl'); render(true); toast('Ficha guardada.'); }
+      cerrarSheet(); datos.cumpl = null; if (tab==='inicio') cargar('cumpl'); render(true);
+      toast(r.empresaCompartida ? 'Ficha guardada. Los datos de la empresa se actualizaron en sus '+r.empresaCompartida+' otras instalaciones.' : 'Ficha guardada.', 5000);
     }).catch(function(e){ busy(false); toast(e.message, 6000); });
+  };
+}
+
+/** Registrar una instalación nueva: solo 4 datos. Si la empresa ya existe, sus datos y su logo se copian solos. */
+function nuevaInstalacion(){
+  var rsList = Array.from(new Set((SRV.centros||[]).map(function(k){return k.razonSocial;}).filter(String)));
+  var h = cabecera('Nueva instalación')+
+    '<p class="muted" style="margin-top:0">Con estos 4 datos ya puedes empezar a evaluar. El resto de la ficha lo completas después.</p>'+
+    lab('Empresa (razón social)', 'Si es una empresa que ya asesoras, elígela de la lista: sus datos y su logo se copian solos.')+
+      '<input type="text" id="nRs" list="dlRs2" autocomplete="off"><datalist id="dlRs2">'+rsList.map(function(r){return '<option value="'+esc(r)+'">';}).join('')+'</datalist>'+
+    '<div id="nRsInfo"></div>'+
+    fCampo('nNom', 'Nombre de la instalación', '', 'Por ejemplo: Planta, Bodega central, Obra, Sucursal. Debe ser distinto de tus otras instalaciones.')+
+    '<div class="row"><div>'+fSel('nReg', 'Región', '', REGIONES, '')+'</div><div>'+lab('Comuna')+'<select id="nCom">'+opcionesComuna('', '')+'</select></div></div>'+
+    '<p class="muted">Se creará la carpeta Empresa / Instalación en Drive.</p>'+
+    '<button class="btn" id="nOk">Registrar instalación</button>';
+  abrirSheet(h);
+  var info = function(){ var hm = hermanaDe($('nRs').value), fi = hm ? (hm.ficha||{}) : {};
+    $('nRsInfo').innerHTML = hm ? '<div class="note" style="margin-top:8px">Empresa ya registrada. Se copian: '+
+      [hm.rutEmpresa?'RUT':'', fi.giro?'giro':'', fi.representanteLegal?'representante legal':'', fi.organismo?'organismo administrador':'', hm.tieneLogo?'logo':''].filter(String).join(', ')+'.</div>' : ''; };
+  $('nRs').addEventListener('input', info); $('nRs').addEventListener('change', info);
+  $('nReg').onchange = function(){ $('nCom').innerHTML = opcionesComuna(this.value, ''); };
+  $('nOk').onclick = function(){
+    var rs = $('nRs').value.trim(), nom = $('nNom').value.trim();
+    if (!rs) return toast('Escribe la razón social de la empresa.');
+    if (!nom) return toast('Escribe el nombre de la instalación.');
+    var hm = hermanaDe(rs);
+    var d = {id:null, razonSocial:hm ? hm.razonSocial : rs, nombre:nom, direccion:'', ficha:{region:$('nReg').value, comuna:$('nCom').value, fechaVisita:hoyIso()}};
+    busy(true, 'Registrando instalación…');
+    run('guardarCentro', d).then(function(r){ busy(false); SRV.centros = r.centros; aplicarConfig({}); elegirCentro(r.id);
+      toast(hm ? 'Instalación registrada con los datos de la empresa.' : 'Instalación registrada. Completa la ficha cuando puedas.', 5000); })
+      .catch(function(e){ busy(false); toast(e.message, 6000); });
   };
 }
 /* ======================= Evaluaciones en curso (borradores) ======================= */
@@ -3294,12 +3368,14 @@ function abrirDocumentos(ids){
       var hecho = uno.estado && uno.estado.cap && uno.estado.cap[p];
       return '<label class="chk" style="margin:4px 0"><input type="checkbox" class="dcPt" value="'+esc(p)+'"'+(hecho?'':' checked')+'><span>'+esc(p)+(hecho?' <span class="muted">(difundido el '+fecha(hecho)+')</span>':'')+'</span></label>'; }).join('')+'</div>';
   if (uno) {
-    var eppL = pu.epp || [];
+    pu.epp = eppUnicos(pu.epp || []); var eppL = pu.epp, marcas = D.eppMarcas || {};
     h += '<div id="dcEpp">'+lab('EPP que se entregan','Marca, modelo y certificación (N° ISP o norma). Se recuerdan para las próximas entregas.')+
-      (eppL.length ? eppL.map(function(e, i){ var c = cat[e.toLowerCase()] || {};
+      (eppL.length ? eppL.map(function(e, i){ var c = cat[eppClave(e)] || cat[e.toLowerCase()] || {};
         return '<div class="card" style="padding:10px;margin:6px 0"><label class="chk" style="margin:0"><input type="checkbox" class="dcE" data-i="'+i+'" checked><span><b>'+esc(e)+'</b></span></label>'+
-          '<div class="row" style="margin-top:6px"><div><input type="text" class="dcEm" data-i="'+i+'" placeholder="Marca / modelo" value="'+esc(c.marca||'')+'"></div><div><input type="text" class="dcEc" data-i="'+i+'" placeholder="Certificación" value="'+esc(c.cert||'')+'"></div></div></div>'; }).join('')
-        : '<p class="muted">Este puesto no tiene EPP en la matriz ni en la ficha. Agrégalos en la ficha del puesto.</p>')+'</div>';
+          '<div class="row" style="margin-top:6px"><div><input type="text" class="dcEm" data-i="'+i+'" list="dlMarcas" placeholder="Marca / modelo" value="'+esc(c.marca||'')+'"></div><div><input type="text" class="dcEc" data-i="'+i+'" placeholder="Certificación" value="'+esc(c.cert||'')+'"></div></div></div>'; }).join('')
+        : '<p class="muted">Este puesto no tiene EPP en la matriz ni en la ficha. Agrégalos en la ficha del puesto.</p>')+
+      '<datalist id="dlMarcas">'+Object.keys(marcas).map(function(k){ return '<option value="'+esc(marcas[k].marca)+'">'; }).join('')+'</datalist>'+
+      '<p class="muted" style="font-size:12.5px">La certificación se completa sola cuando la marca y el modelo ya se usaron antes, en cualquiera de tus instalaciones.</p></div>';
   }
   h += lab('Fecha de los documentos')+'<input type="date" id="dcFec" value="'+iso+'">'+
     '<label class="chk"><input type="checkbox" id="dcWord" checked><span>Crear también en Word (para editar)</span></label>'+
@@ -3311,6 +3387,9 @@ function abrirDocumentos(ids){
   var mostrar = function(){ var sel = function(m){ var c = document.querySelector('.dcM[value="'+m+'"]'); return c && c.checked; };
     if ($('dcIrl')) $('dcIrl').classList.toggle('hidden', !sel('irl')); if ($('dcPts')) $('dcPts').classList.toggle('hidden', !sel('cap')); if ($('dcEpp')) $('dcEpp').classList.toggle('hidden', !sel('epp')); };
   document.querySelectorAll('.dcM').forEach(function(c){ c.onchange = mostrar; }); mostrar();
+  document.querySelectorAll('.dcEm').forEach(function(inp){ inp.addEventListener('change', function(){
+    var m = (D.eppMarcas||{})[inp.value.trim().toLowerCase()], c = document.querySelector('.dcEc[data-i="'+inp.dataset.i+'"]');
+    if (m && m.cert && c && !c.value.trim()){ c.value = m.cert; toast('Certificación completada con la que usaste antes para '+inp.value.trim()+'.'); } }); });
   $('dcOk').onclick = function(){
     var mods = Array.from(document.querySelectorAll('.dcM')).filter(function(c){return c.checked;}).map(function(c){return c.value;});
     var lista = varios ? Array.from(document.querySelectorAll('.dcP')).filter(function(c){return c.checked;}).map(function(c){return c.value;}) : ids;
@@ -3346,38 +3425,65 @@ function abrirDocumentos(ids){
 }
 
 /* ======================= EPP por tarea ======================= */
+/** Clave para reconocer el mismo EPP escrito de distinta forma (zapatos / calzado de seguridad, lentes / gafas, etc.). */
+function eppClave(s){
+  var t = String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\(.*?\)/g,' ');
+  var G = [[/zapat|calzado|botin|bota/,'calzado'],[/casco/,'casco'],[/antiparra|gafas? hermetic/,'antiparras'],[/lente|gafa|anteojo/,'lentes'],[/careta|pantalla facial|protector facial|escudo facial/,'careta'],
+    [/auditiv|fono|tapon|orejera/,'auditivo'],[/respirador|mascarilla|semimascara|mascara/,'respirador'],[/chaleco|reflect/,'chaleco'],[/arnes/,'arnes'],[/bloqueador|protector solar|fps/,'solar'],
+    [/legionario|cubrenuca|jockey|gorro/,'legionario'],[/cabo de vida|estrobo|linea de vida/,'cabo']];
+  for (var i=0;i<G.length;i++) if (G[i][0].test(t)) return G[i][1];
+  if (/guante/.test(t)){ var m = t.match(/cabritilla|nitrilo|multiflex|latex|cuero|dielectric|anticorte|soldador|pvc|termic/); return 'guante '+(m?m[0]:''); }
+  if (/ropa|overol|buzo|traje|pechera|delantal/.test(t)){ var r = t.match(/impermeable|termic|ignifug|soldador|quimic/); return 'ropa '+(r?r[0]:''); }
+  return t.replace(/\b(de|del|la|el|para|con|y|tipo|seguridad|proteccion)\b/g,' ').replace(/s\b/g,'').replace(/\s+/g,' ').trim();
+}
+/** Quita EPP repetidos (mismo elemento escrito distinto), conservando el primer nombre. */
+function eppUnicos(l){ var v = {}; return (l||[]).filter(function(e){ var k = eppClave(e); if (!k || v[k]) return false; v[k] = 1; return true; }); }
 var EPP_FRECUENTES = ['Zapatos de seguridad','Casco de seguridad','Guantes de cabritilla','Guantes multiflex','Guantes de nitrilo','Lentes de seguridad','Antiparras','Protector auditivo',
   'Mascarilla o respirador','Chaleco reflectante','Arnés de seguridad','Ropa de trabajo','Protector solar','Legionario o cubrenuca','Careta facial','Ropa impermeable'];
-function eppDelPuesto(excepto){ var l = []; cur.tareas.forEach(function(t){ if (t===excepto) return; (t.epp||[]).forEach(function(e){ if (l.indexOf(e)<0) l.push(e); }); }); return l; }
+function eppDelPuesto(excepto){ var l = []; cur.tareas.forEach(function(t){ if (t===excepto) return; (t.epp||[]).forEach(function(e){ l.push(e); }); }); return eppUnicos(l); }
 function chipsEpp(t, k){
   return '<label class="lbl"><span>EPP que usa en esta tarea'+ayuda('Elementos de protección personal que la persona usa hoy en esta tarea. Se usan en el análisis y en el registro de entrega de EPP.')+'</span></label>'+
     '<div class="chips">'+(t.epp||[]).map(function(e,i){ return '<span class="chip on">'+esc(e)+'<button type="button" class="x" style="font-size:16px;padding:0 0 0 4px" data-qepp="'+k+':'+i+'" aria-label="Quitar">×</button></span>'; }).join('')+
     '<button class="chip" type="button" data-addepp="'+k+'">'+ico('mas')+'EPP</button></div>';
 }
 function elegirEpp(k){
-  var t = cur.tareas[k], sel = (t.epp||[]).slice(), opciones = EPP_FRECUENTES.concat(eppDelPuesto(null)).filter(function(e,i,a){ return a.indexOf(e)===i; });
+  var t = cur.tareas[k], sel = eppUnicos(t.epp||[]), opciones = eppUnicos(sel.concat(eppDelPuesto(null), EPP_FRECUENTES));
   var pintar = function(){ $('epLista').innerHTML = opciones.map(function(e){ return '<button type="button" class="chip'+(sel.indexOf(e)>=0?' on':'')+'" data-ep="'+esc(e)+'">'+esc(e)+'</button>'; }).join('');
     $('epLista').querySelectorAll('[data-ep]').forEach(function(b){ b.onclick = function(){ var e = b.dataset.ep, i = sel.indexOf(e); if (i>=0) sel.splice(i,1); else sel.push(e); pintar(); }; }); };
   abrirSheet(cabecera('EPP de la tarea '+(k+1))+'<div class="chips" id="epLista"></div>'+lab('Otro EPP')+
     '<div class="row"><div style="flex:2"><input type="text" id="epOtro" autocomplete="off"></div><div><button class="btn sec" type="button" id="epAdd">Agregar</button></div></div>'+
     '<div style="height:14px"></div><button class="btn" id="epOk">Listo</button>');
   pintar();
-  $('epAdd').onclick = function(){ var e = $('epOtro').value.trim(); if (!e) return; if (opciones.indexOf(e)<0) opciones.push(e); if (sel.indexOf(e)<0) sel.push(e); $('epOtro').value=''; pintar(); };
-  $('epOk').onclick = function(){ t.epp = sel; if (t.analizado) t.cambiada = true; guardarBorrador(); cerrarSheet(); render(true); };
+  $('epAdd').onclick = function(){ var e = $('epOtro').value.trim(); if (!e) return; var k = eppClave(e), ya = opciones.filter(function(o){ return eppClave(o)===k; })[0];
+    if (ya){ e = ya; toast('Ya estaba en la lista como "'+ya+'".'); } else opciones.push(e); if (sel.indexOf(e)<0) sel.push(e); $('epOtro').value=''; pintar(); };
+  $('epOk').onclick = function(){ t.epp = eppUnicos(sel); if (t.analizado) t.cambiada = true; guardarBorrador(); cerrarSheet(); render(true); };
 }
 /** Al agregar tareas nuevas: pregunta qué EPP de las otras tareas del puesto se repiten (no se copian solos). */
 function preguntarEpp(nuevas, listo){
-  var disp = []; cur.tareas.forEach(function(t){ if (nuevas.indexOf(t)>=0) return; (t.epp||[]).forEach(function(e){ if (disp.indexOf(e)<0) disp.push(e); }); });
+  var disp = []; cur.tareas.forEach(function(t){ if (nuevas.indexOf(t)>=0) return; (t.epp||[]).forEach(function(e){ disp.push(e); }); }); disp = eppUnicos(disp);
   if (!disp.length || !nuevas.length){ if (listo) listo(); return; }
+  if (cur.eppComun){ // ya se respondió en esta evaluación: se aplica solo, sin volver a preguntar
+    nuevas.forEach(function(t){ t.epp = eppUnicos((t.epp||[]).concat(cur.eppComun)); });
+    guardarBorrador(); render(true); if (cur.eppComun.length) toast('EPP comunes del puesto aplicados a '+(nuevas.length>1?'las tareas nuevas':'la tarea nueva')+'. Puedes ajustarlos en cada tarea.', 5000);
+    if (listo) listo(); return;
+  }
   var sel = nuevas.map(function(t){ return (t.epp||[]).slice(); });
   var pintar = function(){ $('peLista').innerHTML = nuevas.map(function(t,i){
       return '<div class="card" style="padding:12px"><div class="muted" style="margin-bottom:8px"><b style="color:var(--ink)">Tarea '+(cur.tareas.indexOf(t)+1)+'</b>'+(t.tarea?': '+esc(t.tarea.slice(0,90))+(t.tarea.length>90?'…':''):'')+'</div><div class="chips">'+
         disp.map(function(e){ return '<button type="button" class="chip'+(sel[i].indexOf(e)>=0?' on':'')+'" data-pe="'+i+'" data-e="'+esc(e)+'">'+esc(e)+'</button>'; }).join('')+'</div></div>'; }).join('');
     $('peLista').querySelectorAll('[data-pe]').forEach(function(b){ b.onclick = function(){ var s = sel[+b.dataset.pe], e = b.dataset.e, j = s.indexOf(e); if (j>=0) s.splice(j,1); else s.push(e); pintar(); }; }); };
   abrirSheet(cabecera('¿Qué EPP se repiten?', true)+'<p class="muted" style="margin-top:0">Estos EPP ya se usan en otras tareas del puesto. Marca los que también se usan en '+(nuevas.length>1?'cada tarea nueva':'la tarea nueva')+'.</p><div id="peLista"></div>'+
+    '<button class="btn ghost" style="width:100%;margin-bottom:8px" id="peTodos">'+(nuevas.length>1?'Todas usan estos mismos EPP':'Usa todos estos EPP')+'</button>'+
+    '<label class="chk"><input type="checkbox" id="peRecordar" checked><span>No volver a preguntar en esta evaluación: aplicar lo mismo a las tareas que agregue</span></label>'+
     '<button class="btn" id="peOk">Aplicar</button><button class="btn ghost" style="width:100%;margin-top:6px" id="peNo">Ninguno se repite</button>', true);
   pintar();
-  var fin = function(aplicar){ if (aplicar) nuevas.forEach(function(t,i){ t.epp = sel[i]; }); guardarBorrador(); cerrarSheet(); render(true); if (listo) listo(); };
+  if ($('peTodos')) $('peTodos').onclick = function(){ sel = nuevas.map(function(t){ return eppUnicos((t.epp||[]).concat(disp)); }); pintar(); };
+  var fin = function(aplicar){
+    if (aplicar) nuevas.forEach(function(t,i){ t.epp = eppUnicos(sel[i]); });
+    if ($('peRecordar').checked){ // lo marcado en TODAS las tareas nuevas se considera común al puesto
+      cur.eppComun = aplicar ? disp.filter(function(e){ return sel.every(function(s){ return s.indexOf(e)>=0; }); }) : [];
+    }
+    guardarBorrador(); cerrarSheet(); render(true); if (listo) listo(); };
   $('peOk').onclick = function(){ fin(true); }; $('peNo').onclick = function(){ fin(false); };
 }
 
@@ -3586,7 +3692,7 @@ function personasCentro(nombre){
   var add = function(n, cg, nota){ n = String(n||'').trim(); cg = String(cg||'').trim(); var k = (n+'|'+cg).toLowerCase(); if (!n || vistos[k]) return; vistos[k] = 1; out.push({nombre:n, cargo:cg, nota:nota||''}); };
   add(c.respEjecNombre, c.respEjecCargo, 'Por defecto');
   (c.responsables||[]).forEach(function(x){ add(x.nombre, x.cargo); });
-  add(f.asesorNombre, 'Asesor/a en prevención de riesgos');
+  add(f.asesorNombre, 'Experto/a en prevención de riesgos');
   add(c.respSegNombre, c.respSegCargo);
   return out;
 }
@@ -3698,7 +3804,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<14) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
+    if (!c.version || c.version<16) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
     else toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -4042,7 +4148,7 @@ function init2(){
     run('getConfig').then(function(c){
       aplicarConfig(c);
       if (init.enlace) toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<14)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<16)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
       else if (!c.tieneClave && puede('admin') && !(c.usuario||{}).tieneClaveGemini) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       if (!abrirUnico()) render(true);
