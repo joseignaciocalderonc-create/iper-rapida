@@ -1,7 +1,7 @@
-/* Service worker de Miper PrevFront: guarda la app para abrirla rápido y sin conexión.
+/* Service worker de Gestión PrevFront: guarda la app para abrirla rápido y sin conexión.
    Las llamadas al servidor (IA, Excel) nunca se guardan en caché. */
-var CACHE = 'iper-rapida-v25';
-var ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
+var CACHE = 'iper-rapida-v26';
+var ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'marca-inicio.webp'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARCHIVOS); }).then(function () { return self.skipWaiting(); }));

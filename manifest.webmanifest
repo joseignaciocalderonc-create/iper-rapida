@@ -1,7 +1,7 @@
 {
-  "name": "Miper PrevFront",
-  "short_name": "Miper PrevFront",
-  "description": "Matriz IPER de riesgos laborales asistida por IA, con análisis de fotos y envío del Excel por correo.",
+  "name": "Gestión PrevFront",
+  "short_name": "PrevFront",
+  "description": "Gestión preventiva para expertos en prevención: matriz IPER asistida por IA, IRL y registros del D.S. N° 44.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
