@@ -1570,7 +1570,7 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '20.0';
+var VERSION_APP = '21.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -3198,7 +3198,7 @@ function irlActiva(){ return !(SRV.usuario && SRV.usuario.irl===false); }
 var MODULOS_TODOS = [['irl','Información de los riesgos laborales (IRL)','Art. 15. Firman la persona trabajadora y quien informa.'],
   ['ri','Entrega del reglamento interno','RIOHS o RIHS según la dotación. Firma la persona trabajadora.'],
   ['cap','Difusión y capacitación de PTS','Un registro de 1 hora por procedimiento. Firman la persona y quien relata.'],
-  ['epp','Entrega de EPP','Con marca, modelo y certificación. Firma la persona trabajadora.']];
+  ['epp','Entrega de EPP','Con marca y modelo. Firma la persona trabajadora.']];
 var MOTIVOS_IRL = [['ingreso','Antes del inicio de las labores'],['proceso','Incorporación a un nuevo proceso o puesto'],['cambio','Cambio de tecnologías, materiales o sustancias'],['matriz','Actualización de la matriz de riesgos'],['irl','Actualización de la IRL']];
 function modulosVisibles(){ return MODULOS_TODOS; }
 function estadoDocs(x){
@@ -3459,14 +3459,15 @@ function abrirDocumentos(ids){
       var hecho = uno.estado && uno.estado.cap && uno.estado.cap[p];
       return '<label class="chk" style="margin:4px 0"><input type="checkbox" class="dcPt" value="'+esc(p)+'"'+(hecho?'':' checked')+'><span>'+esc(p)+(hecho?' <span class="muted">(difundido el '+fecha(hecho)+')</span>':'')+'</span></label>'; }).join('')+'</div>';
   if (uno) {
-    pu.epp = eppUnicos(pu.epp || []); var eppL = pu.epp, marcas = D.eppMarcas || {};
-    h += '<div id="dcEpp">'+lab('EPP que se entregan','Marca, modelo y certificación (N° ISP o norma). Se recuerdan para las próximas entregas.')+
+    pu.epp = eppUnicos(pu.epp || []); var eppL = pu.epp;
+    h += '<div id="dcEpp">'+lab('EPP que se entregan','Escribe una letra de la marca y elígela de la lista; luego elige el modelo. Se recuerdan para las próximas entregas, en todas tus instalaciones.')+
       (eppL.length ? eppL.map(function(e, i){ var c = cat[eppClave(e)] || cat[e.toLowerCase()] || {};
         return '<div class="card" style="padding:10px;margin:6px 0"><label class="chk" style="margin:0"><input type="checkbox" class="dcE" data-i="'+i+'" checked><span><b>'+esc(e)+'</b></span></label>'+
-          '<div class="row" style="margin-top:6px"><div><input type="text" class="dcEm" data-i="'+i+'" list="dlMarcas" placeholder="Marca / modelo" value="'+esc(c.marca||'')+'"></div><div><input type="text" class="dcEc" data-i="'+i+'" placeholder="Certificación" value="'+esc(c.cert||'')+'"></div></div></div>'; }).join('')
-        : '<p class="muted">Este puesto no tiene EPP en la matriz ni en la ficha. Agrégalos en la ficha del puesto.</p>')+
-      '<datalist id="dlMarcas">'+Object.keys(marcas).map(function(k){ return '<option value="'+esc(marcas[k].marca)+'">'; }).join('')+'</datalist>'+
-      '<p class="muted" style="font-size:12.5px">La certificación se completa sola cuando la marca y el modelo ya se usaron antes, en cualquiera de tus instalaciones.</p></div>';
+          '<input type="text" class="dcEm" data-i="'+i+'" placeholder="Marca (escribe una letra)" autocomplete="off" value="'+esc(c.marca||'')+'" style="margin-top:6px">'+
+          '<div class="chips sugM hidden" data-i="'+i+'" style="margin-top:6px"></div>'+
+          '<select class="dcEo hidden" data-i="'+i+'" style="margin-top:6px"></select>'+
+          '<input type="text" class="dcEx hidden" data-i="'+i+'" placeholder="Modelo" autocomplete="off" value="'+esc(c.modelo||'')+'" style="margin-top:6px"></div>'; }).join('')
+        : '<p class="muted">Este puesto no tiene EPP en la matriz ni en la ficha. Agrégalos en la ficha del puesto.</p>')+'</div>';
   }
   h += lab('Fecha de los documentos')+'<input type="date" id="dcFec" value="'+iso+'">'+
     '<label class="chk"><input type="checkbox" id="dcWord" checked><span>Crear también en Word (para editar)</span></label>'+
@@ -3478,9 +3479,31 @@ function abrirDocumentos(ids){
   var mostrar = function(){ var sel = function(m){ var c = document.querySelector('.dcM[value="'+m+'"]'); return c && c.checked; };
     if ($('dcIrl')) $('dcIrl').classList.toggle('hidden', !sel('irl')); if ($('dcPts')) $('dcPts').classList.toggle('hidden', !sel('cap')); if ($('dcEpp')) $('dcEpp').classList.toggle('hidden', !sel('epp')); };
   document.querySelectorAll('.dcM').forEach(function(c){ c.onchange = mostrar; }); mostrar();
-  document.querySelectorAll('.dcEm').forEach(function(inp){ inp.addEventListener('change', function(){
-    var m = (D.eppMarcas||{})[inp.value.trim().toLowerCase()], c = document.querySelector('.dcEc[data-i="'+inp.dataset.i+'"]');
-    if (m && m.cert && c && !c.value.trim()){ c.value = m.cert; toast('Certificación completada con la que usaste antes para '+inp.value.trim()+'.'); } }); });
+  if (uno && $('dcEpp')) (pu.epp||[]).forEach(function(e, i){
+    var inp = document.querySelector('.dcEm[data-i="'+i+'"]'), sug = document.querySelector('.sugM[data-i="'+i+'"]');
+    var sel = document.querySelector('.dcEo[data-i="'+i+'"]'), otro = document.querySelector('.dcEx[data-i="'+i+'"]');
+    var M = function(){ return marcasEpp(e, D.eppModelos); };
+    var modelos = function(){ var mm = M(), k = Object.keys(mm).filter(function(x){ return normTxt(x)===normTxt(inp.value); })[0];
+      if (k && k!==inp.value) inp.value = k;
+      var l = k ? mm[k] : [];
+      if (!inp.value.trim()){ sel.classList.add('hidden'); otro.classList.add('hidden'); return; }
+      if (!l.length){ sel.classList.add('hidden'); otro.classList.remove('hidden'); return; }
+      var v = otro.value.trim(), esta = l.some(function(x){ return normTxt(x)===normTxt(v); });
+      sel.innerHTML = '<option value="">Elegir modelo</option>'+l.map(function(x){ return '<option'+(normTxt(x)===normTxt(v)?' selected':'')+'>'+esc(x)+'</option>'; }).join('')+'<option value="__otro"'+(v&&!esta?' selected':'')+'>Otro modelo (escribir)</option>';
+      sel.classList.remove('hidden'); otro.classList.toggle('hidden', !(v && !esta)); };
+    var sugerir = function(){ var q = normTxt(inp.value), mm = Object.keys(M()).sort(function(a,b){ return a.localeCompare(b); });
+      var l = mm.filter(function(x){ return !q || normTxt(x).indexOf(q)===0; }); if (q && !l.length) l = mm.filter(function(x){ return normTxt(x).indexOf(q)>=0; });
+      if (l.length===1 && normTxt(l[0])===q) l = [];
+      sug.innerHTML = l.slice(0,12).map(function(x){ return '<button type="button" class="chip" data-marca="'+esc(x)+'">'+esc(x)+'</button>'; }).join('');
+      sug.classList.toggle('hidden', !l.length); };
+    inp.addEventListener('focus', sugerir); inp.addEventListener('input', function(){ sugerir(); modelos(); });
+    inp.addEventListener('blur', function(){ setTimeout(function(){ sug.classList.add('hidden'); modelos(); }, 200); });
+    sug.addEventListener('mousedown', function(ev){ ev.preventDefault(); });
+    sug.addEventListener('click', function(ev){ var bt = ev.target.closest('[data-marca]'); if (!bt) return; ev.stopPropagation();
+      inp.value = bt.dataset.marca; otro.value = ''; sug.classList.add('hidden'); modelos(); if (!sel.classList.contains('hidden')) sel.focus(); else otro.focus(); });
+    sel.addEventListener('change', function(){ var o = sel.value==='__otro'; otro.classList.toggle('hidden', !o); if (o){ otro.value = ''; otro.focus(); } });
+    modelos();
+  });
   $('dcOk').onclick = function(){
     var mods = Array.from(document.querySelectorAll('.dcM')).filter(function(c){return c.checked;}).map(function(c){return c.value;});
     var lista = varios ? Array.from(document.querySelectorAll('.dcP')).filter(function(c){return c.checked;}).map(function(c){return c.value;}) : ids;
@@ -3490,7 +3513,9 @@ function abrirDocumentos(ids){
     if (uno && $('dcPts')) { extra.pts = Array.from(document.querySelectorAll('.dcPt')).filter(function(c){return c.checked;}).map(function(c){return c.value;}); if (mods.indexOf('cap')>=0 && !extra.pts.length) return toast('Marca al menos un procedimiento.'); }
     if (uno && mods.indexOf('epp')>=0) extra.eppDatos = (pu.epp||[]).map(function(e, i){
       var on = document.querySelector('.dcE[data-i="'+i+'"]'); if (!on || !on.checked) return null;
-      return {epp:e, marca:document.querySelector('.dcEm[data-i="'+i+'"]').value.trim(), cert:document.querySelector('.dcEc[data-i="'+i+'"]').value.trim()}; }).filter(Boolean);
+      var sel = document.querySelector('.dcEo[data-i="'+i+'"]'), otro = document.querySelector('.dcEx[data-i="'+i+'"]');
+      var modelo = !sel.classList.contains('hidden') && sel.value && sel.value!=='__otro' ? sel.value : otro.classList.contains('hidden') ? '' : otro.value.trim();
+      return {epp:e, marca:document.querySelector('.dcEm[data-i="'+i+'"]').value.trim(), modelo:modelo}; }).filter(Boolean);
     if (uno && mods.indexOf('epp')>=0 && !extra.eppDatos.length) return toast('Marca al menos un EPP.');
     var hechos = [], n = 0, errores = [];
     cerrarSheet(); pedirPermisoAvisos();
@@ -3526,6 +3551,34 @@ function eppClave(s){
   if (/guante/.test(t)){ var m = t.match(/cabritilla|nitrilo|multiflex|latex|cuero|dielectric|anticorte|soldador|pvc|termic/); return 'guante '+(m?m[0]:''); }
   if (/ropa|overol|buzo|traje|pechera|delantal/.test(t)){ var r = t.match(/impermeable|termic|ignifug|soldador|quimic/); return 'ropa '+(r?r[0]:''); }
   return t.replace(/\b(de|del|la|el|para|con|y|tipo|seguridad|proteccion)\b/g,' ').replace(/s\b/g,'').replace(/\s+/g,' ').trim();
+}
+/* Marcas habituales en Chile por tipo de EPP, con algunos modelos conocidos. Los modelos que escribas se suman solos. */
+var EPP_MARCAS = {
+  calzado:{'Bata Industrials':[],'Marluvas':[],'Panter':[],'Steelpro':[],'Cofra':[],'Delta Plus':[],'Jogger':[]},
+  casco:{'MSA':['V-Gard'],'3M':['H-700','SecureFit X5000'],'Steelpro':[],'Libus':['Milenium Class'],'Delta Plus':['Quartz'],'Honeywell':[]},
+  lentes:{'3M':['Virtua','SecureFit SF201','Solus 1000'],'Steelpro':['Spy'],'Uvex':['Ultra-spec 2000','Genesis'],'Honeywell':['A700'],'MSA':[],'Libus':[],'Delta Plus':[]},
+  antiparras:{'3M':['GoggleGear 500','334'],'Uvex':['Stealth'],'Steelpro':[],'Libus':[],'MSA':[],'Delta Plus':[]},
+  careta:{'3M':[],'Steelpro':[],'Libus':[],'Honeywell':[],'MSA':[]},
+  auditivo:{'3M':['1100 (tapón de espuma)','1270 (tapón reutilizable)','Peltor Optime 98','Peltor Optime 101','Peltor Optime 105','Peltor X4A'],'Moldex':['Sparkplugs'],'Honeywell':['Howard Leight Max'],'Steelpro':[],'Libus':[],'MSA':[]},
+  respirador:{'3M':['6200 (medio rostro)','7502 (medio rostro)','6800 (rostro completo)','8210 (N95)','8511 (N95 con válvula)'],'MSA':['Advantage 200 LS','Advantage 3000'],'Moldex':['2200 (N95)'],'Honeywell':['North 7700'],'Steelpro':[],'Libus':[]},
+  chaleco:{'Steelpro':[],'Libus':[],'3M':[],'Delta Plus':[]},
+  arnes:{'3M':['DBI-SALA Delta','Protecta'],'MSA':['V-Form','V-Fit'],'Honeywell':['Miller'],'Steelpro':[],'Libus':[]},
+  cabo:{'3M':['DBI-SALA EZ-Stop','Protecta'],'MSA':[],'Honeywell':['Miller'],'Steelpro':[],'Libus':[]},
+  solar:{'Isdin':[],'La Roche-Posay':[],'Eucerin':[],'Nivea':[],'Banana Boat':[],'3M':[]},
+  legionario:{'Steelpro':[],'Libus':[],'3M':[]},
+  guante:{'Ansell':['HyFlex 11-800','HyFlex 11-840','Sol-Vex 37-175','TouchNTuff 92-600'],'Steelpro':[],'Libus':[],'Showa':[],'3M':['Comfort Grip'],'Honeywell':[],'Delta Plus':[]},
+  ropa:{'Steelpro':[],'Libus':[],'Delta Plus':[],'3M':[]},
+  otro:{'3M':[],'MSA':[],'Steelpro':[],'Libus':[],'Honeywell':[],'Delta Plus':[],'Ansell':[]}
+};
+function normTxt(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
+/** Marcas (con sus modelos) para un EPP: las habituales más las que ya usaste en tus entregas. */
+function marcasEpp(epp, aprendidos){
+  var c = eppClave(epp), base = EPP_MARCAS[c] || EPP_MARCAS[c.split(' ')[0]] || EPP_MARCAS.otro, out = {};
+  Object.keys(base).forEach(function(m){ out[m] = base[m].slice(); });
+  var ap = (aprendidos||{})[c] || {};
+  Object.keys(ap).forEach(function(m){ var k = Object.keys(out).filter(function(x){ return normTxt(x)===normTxt(m); })[0] || m;
+    out[k] = (out[k]||[]); (ap[m]||[]).forEach(function(md){ if (!out[k].some(function(x){ return normTxt(x)===normTxt(md); })) out[k].push(md); }); });
+  return out;
 }
 /** Quita EPP repetidos (mismo elemento escrito distinto), conservando el primer nombre. */
 function eppUnicos(l){ var v = {}; return (l||[]).filter(function(e){ var k = eppClave(e); if (!k || v[k]) return false; v[k] = 1; return true; }); }
@@ -3928,7 +3981,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<20) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
+    if (!c.version || c.version<21) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
     else toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -4281,7 +4334,7 @@ function init2(){
     run('getConfig').then(function(c){
       aplicarConfig(c);
       if (init.enlace) toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<20)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<21)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
       else if (!c.tieneClave && puede('admin') && !(c.usuario||{}).tieneClaveGemini) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       if (!abrirUnico()) render(true);
