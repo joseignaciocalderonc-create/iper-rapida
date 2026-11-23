@@ -1570,7 +1570,7 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '26.2';
+var VERSION_APP = '27.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -2301,7 +2301,8 @@ function renderNueva(){
   if (!cur) return ['<div class="empty">No hay una evaluación abierta.</div>',''];
   if (!puede('evaluador')) return ['<div class="empty">Tu perfil ('+esc(ROLES_TXT[rol()])+') permite ver la matriz, pero no crear evaluaciones.</div>',''];
   var h = stepper(), bar='';
-  if (cur.reevaluando) h += '<div class="banner">Reevaluando una tarea existente. Al guardar se actualizará en la matriz y volverá a <b>Borrador</b>.</div>';
+  if (cur.reevaluando && cur.soloEditar) h += '<div class="banner">Editando los riesgos y medidas de una tarea guardada (sin volver a analizar). Toca un riesgo para cambiar sus valores o medidas y luego <b>Guardar</b>. La tarea vuelve a <b>Borrador</b> para validarla de nuevo.</div>';
+  else if (cur.reevaluando) h += '<div class="banner">Reevaluando una tarea existente. Al guardar se actualizará en la matriz y volverá a <b>Borrador</b>.</div>';
   if (cur.enCola) h += '<div class="banner">Esta evaluación está en cola. Se analizará cuando vuelva la conexión (o toca Analizar).</div>';
   if (cur.centro && !enEsteCentro(cur)) h += '<div class="note aviso" style="margin-bottom:12px">Esta evaluación pertenece a <b>'+esc(nomC(cur.centro))+'</b>, no a la instalación abierta.</div>';
   else if (!cur.centro) h += '<div class="note aviso" style="margin-bottom:12px">Esta evaluación no tiene instalación. <a href="#" onclick="cur.centro=cfg.centro;guardarBorrador();render(true);return false">Asignarla a esta instalación</a></div>';
@@ -2785,7 +2786,7 @@ function editarDatosTarea(id){
     };
   }).catch(function(e){ busy(false); toast(e.message); });
 }
-function reevaluar(id){
+function reevaluar(id, soloEditar){
   busy(true,'Cargando tarea…');
   run('obtenerTarea', id).then(function(d){
     busy(false);
@@ -2794,6 +2795,8 @@ function reevaluar(id){
     var t = nuevaTareaItem(d.medidasTexto||'');
     Object.assign(t, {id:d.id, tarea:d.tarea, epp:[], medidasTexto:d.medidasPuesto?(d.medidasTexto||''):'', herramientas:d.herramientas||[], accesorios:d.accesorios||[], quimicos:d.quimicos||[], quimicosAnalisis:d.quimicosAnalisis||[], rutinaria:d.rutinaria!==false, riesgos:d.riesgos||[], medidasActuales:d.medidasActuales||[], observacionesFoto:d.observacionesFoto||'', analizado:true, cambiada:true});
     t.riesgos.forEach(function(r){ r.confirmado = true; });
+    if (soloEditar){ t.cambiada = false; ev.soloEditar = true; ev.tareas = [t]; cur = ev; paso = 3; tab = 'evaluar'; guardarBorrador(); render();
+      return toast('Edita los riesgos, valores y medidas, y toca Guardar. Luego genera la matriz actualizada.', 6000); }
     ev.tareas = [t]; cur = ev; paso = 2; tab = 'evaluar'; guardarBorrador(); render();
     toast(d.eventos && d.eventos.length ? 'Revisa las medidas y vuelve a analizar: la IA considerará el '+d.eventos[d.eventos.length-1].tipo.toLowerCase()+' registrado.' : 'Revisa los datos y vuelve a analizar, o ve directo a Resultados.', 6000);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -2809,6 +2812,10 @@ function renderMatriz(){
   if (!L.length) return [h+'<div class="empty">Aún no hay tareas en esta instalación.'+(puede('evaluador')?'<br>Crea una con <b>Nueva evaluación</b> en el Resumen.':'')+'</div>',''];
   var puestos = Array.from(new Set(L.map(function(t){return t.puesto;})));
   h += tarjetaAutorizacion(L);
+  var ultM = 0; try{ ultM = +localStorage.getItem('ultMatriz:'+cfg.centro) || 0; }catch(e){}
+  var cambiadas = ultM ? L.filter(function(t){ return t.actualizada && new Date(t.actualizada).getTime() > ultM+5000; }).length : 0;
+  if (cambiadas) h += '<div class="note warn" style="margin-bottom:10px"><b>Hay cambios desde la última matriz enviada</b> ('+cambiadas+' tarea(s) modificada(s) después del '+fecha(new Date(ultM).toISOString())+'). Toca <b>Generar matriz actualizada</b> para recibir el Excel y el PDF nuevos.</div>';
+  else if (ultM) h += '<div class="muted" style="font-size:12.5px;margin:-2px 0 10px">Última matriz enviada: '+fecha(new Date(ultM).toISOString())+'. Cada vez que generas, se crea una matriz nueva con los datos actuales.</div>';
   if (puede('evaluador')&&otrosCentros().length) h += '<button class="btn ghost" style="width:100%;margin:-4px 0 8px" id="btnSel">'+(selMatriz?'Cancelar selección':ico('copiar')+'Copiar o mover tareas a otra instalación')+'</button>';
   if (L.length>4) h += '<input type="text" class="search" id="buscar" placeholder="Buscar proceso, puesto o tarea" value="'+esc(filtroMatriz)+'">';
   var q = filtroMatriz.toLowerCase(), grupoAnt = '';
@@ -2830,7 +2837,7 @@ function renderMatriz(){
       '<div class="acts">'+
         (t.estado==='Borrador'&&puede('evaluador')?'<button class="chip" data-est="Revisada" data-id="'+t.id+'">Marcar revisada</button>':'')+
         (t.estado!=='Validada'&&puede('validador')?'<button class="chip on" data-est="Validada" data-id="'+t.id+'">'+ico('ok')+'Validar</button>':'')+
-        (puede('evaluador')?'<button class="chip" data-edtask="'+t.id+'">'+ico('editar')+'Editar datos</button><button class="chip" data-reev="'+t.id+'">'+ico('rehacer')+'Reevaluar</button><button class="chip" data-evt="'+t.id+'">Registrar accidente</button>':'')+
+        (puede('evaluador')?'<button class="chip" data-edtask="'+t.id+'">'+ico('editar')+'Editar datos</button><button class="chip" data-edries="'+t.id+'">'+ico('editar')+'Editar riesgos y medidas</button><button class="chip" data-reev="'+t.id+'">'+ico('rehacer')+'Reevaluar con IA</button><button class="chip" data-evt="'+t.id+'">Registrar accidente</button>':'')+
         '<button class="chip" data-hist="'+t.id+'">'+ico('reloj')+'Historial</button>'+
         (puede('validador')?'<button class="chip" data-deltask="'+t.id+'" aria-label="Eliminar tarea" style="color:var(--int)">'+ico('borrar')+'</button>':'')+
       '</div></div>';
@@ -2840,7 +2847,7 @@ function renderMatriz(){
     var nSel = Object.keys(selMatriz).filter(function(k){return selMatriz[k];}).length;
     return [h,'<button class="btn sec" id="btnCopiarSel">Copiar ('+nSel+')</button>'+(puede('validador')?'<button class="btn sec" id="btnMoverSel">Mover ('+nSel+')</button>':'')];
   }
-  return [h,'<button class="btn" id="btnEnviar">'+ico('correo')+'Enviar matriz en Excel y PDF</button>'];
+  return [h,'<button class="btn" id="btnEnviar">'+ico('correo')+'Generar matriz actualizada (Excel y PDF)</button>'];
 }
 
 /* ======================= Medidas ======================= */
@@ -3101,9 +3108,9 @@ function abrirUsuario(id){
   var todos = !x.centros || x.centros==='*', sel = todos ? [] : x.centros, grupos = {};
   (SRV.centros||[]).forEach(function(c){ (grupos[c.razonSocial] = grupos[c.razonSocial]||[]).push(c); });
   abrirSheet(cabecera(id?'Editar usuario':'Nuevo usuario')+
-    lab('Nombre', 'Aparece en el historial y en las validaciones.')+'<input type="text" id="uNom" value="'+esc(x.nombre)+'" autocomplete="off">'+
+    lab('Nombre', 'Aparece en el historial y en las validaciones.')+'<input type="text" id="uNom" value="'+esc(x.nombre)+'" autocomplete="off" readonly onpointerdown="this.removeAttribute(\'readonly\')" onfocus="this.removeAttribute(\'readonly\')">'+
     lab('Cargo', 'Cargo de la persona en su empresa. Se muestra junto a su nombre en la matriz.')+'<input type="text" id="uCar" value="'+esc(x.cargo||'')+'" autocomplete="off">'+
-    lab('Correo', 'Correo donde recibirá la matriz cuando la envíe desde su teléfono. Es opcional.')+'<input type="email" id="uCor" value="'+esc(x.correo)+'" autocomplete="off">'+
+    lab('Correo', 'Correo donde recibirá la matriz cuando la envíe desde su teléfono. Es opcional.')+'<input type="email" id="uCor" value="'+esc(x.correo)+'" autocomplete="off" readonly onpointerdown="this.removeAttribute(\'readonly\')" onfocus="this.removeAttribute(\'readonly\')">'+
     lab('Perfil', 'Define qué puede hacer la persona en la app.')+
       '<select id="uRol">'+['evaluador','validador','visualizador','admin'].map(function(r){return '<option value="'+r+'"'+(x.rol===r?' selected':'')+'>'+ROLES_TXT[r]+'</option>';}).join('')+'</select>'+
     '<div id="uCentrosBox"'+(x.rol==='admin'?' class="hidden"':'')+'>'+
@@ -3166,12 +3173,12 @@ function renderAcceso(){
       '<div style="height:10px"></div><button class="btn ghost" style="width:100%" id="acDemo">Probar sin cuenta (demostración)</button>';
   } else if (v==='registro'){
     h += '<p class="pasos-t">Crear cuenta</p><h2>Tus datos como experto/a</h2><p class="sub">Aparecen en la matriz de riesgos que elaboras.</p>'+
-      '<div class="card">'+lab('Nombre y apellido', 'Tal como debe aparecer en la matriz que elaboras.')+'<input type="text" id="rgNom" autocomplete="name">'+
-      lab('RUT')+'<input type="text" id="rgRut" autocomplete="off"><div id="rgRutMsg" class="muted" style="margin-top:4px"></div>'+
-      lab('Profesión o cargo', 'Cómo te identificas en la matriz. Si lo dejas vacío se usa "Experto/a en Prevención de Riesgos".')+'<input type="text" id="rgCar" autocomplete="organization-title">'+
+      '<div class="card">'+lab('Nombre y apellido', 'Tal como debe aparecer en la matriz que elaboras.')+'<input type="text" id="rgNom" autocomplete="off" readonly onpointerdown="this.removeAttribute(\'readonly\')" onfocus="this.removeAttribute(\'readonly\')">'+
+      lab('RUT')+'<input type="text" id="rgRut" autocomplete="off" readonly onpointerdown="this.removeAttribute(\'readonly\')" onfocus="this.removeAttribute(\'readonly\')"><div id="rgRutMsg" class="muted" style="margin-top:4px"></div>'+
+      lab('Profesión o cargo', 'Cómo te identificas en la matriz. Si lo dejas vacío se usa "Experto/a en Prevención de Riesgos".')+'<input type="text" id="rgCar" autocomplete="off" readonly onpointerdown="this.removeAttribute(\'readonly\')" onfocus="this.removeAttribute(\'readonly\')">'+
       lab('N° de registro SEREMI <span class="muted" style="font-weight:400">(opcional)</span>', 'Número de inscripción del experto/a en prevención de riesgos ante la SEREMI de Salud: letras, barra, número y -P. Por ejemplo: AB/ 1234-P.')+'<input type="text" id="rgReg" placeholder="Ej: AB/ 1234-P" autocapitalize="characters" autocomplete="off" data-registro>'+
-      lab('Teléfono <span class="muted" style="font-weight:400">(opcional)</span>')+'<input type="text" id="rgTel" inputmode="tel" autocomplete="tel"></div>'+
-      '<div class="card">'+lab('Correo', 'Aquí llegan el código de activación y las matrices.')+'<input type="email" id="rgCorreo" autocomplete="email" inputmode="email">'+
+      lab('Teléfono <span class="muted" style="font-weight:400">(opcional)</span>')+'<input type="text" id="rgTel" inputmode="tel" autocomplete="off" readonly onpointerdown="this.removeAttribute(\'readonly\')" onfocus="this.removeAttribute(\'readonly\')"></div>'+
+      '<div class="card">'+lab('Correo', 'Aquí llegan el código de activación y las matrices.')+'<input type="email" id="rgCorreo" inputmode="email" autocomplete="off" readonly onpointerdown="this.removeAttribute(\'readonly\')" onfocus="this.removeAttribute(\'readonly\')">'+
       campoClave('rgClave','Contraseña','Al menos 8 caracteres, con letras y números.','new-password')+campoClave('rgClave2','Repetir contraseña','','new-password')+
       '<label class="chk" style="margin-top:14px"><input type="checkbox" id="rgAcepta"><span>Acepto los términos de uso y la <a href="#" id="rgPriv">política de privacidad</a>.</span></label></div>'+
       '<button class="btn" id="acRegistrar">Crear cuenta</button><button class="btn ghost" style="width:100%;margin-top:6px" data-acv="ingresar">Ya tengo cuenta</button>';
@@ -3279,7 +3286,7 @@ function abrirCorreos(){
   var pintar = function(){ $('crLista').innerHTML = l.length ? '<div class="list" style="margin:0">'+l.map(function(c,i){ return '<div class="li"><span class="tx"><b>'+esc(c)+'</b></span><button class="x" type="button" data-qcr="'+i+'" aria-label="Quitar">×</button></div>'; }).join('')+'</div>' : '<p class="muted" style="margin:0">Solo tu correo de la cuenta.</p>';
     $('crLista').querySelectorAll('[data-qcr]').forEach(function(b){ b.onclick = function(){ l.splice(+b.dataset.qcr,1); pintar(); }; }); };
   abrirSheet(cabecera('Correos de destino')+'<p class="muted" style="margin-top:0">Además de tu correo, puedes enviar matrices y documentos a hasta 5 correos.</p><div id="crLista"></div>'+
-    '<div class="row" style="margin-top:10px"><div style="flex:2"><input type="email" id="crNuevo" inputmode="email" autocomplete="off"></div><div><button class="btn sec" id="crAdd" type="button">Agregar</button></div></div>'+
+    '<div class="row" style="margin-top:10px"><div style="flex:2"><input type="email" id="crNuevo" inputmode="email" autocomplete="off" readonly onpointerdown="this.removeAttribute(\'readonly\')" onfocus="this.removeAttribute(\'readonly\')"></div><div><button class="btn sec" id="crAdd" type="button">Agregar</button></div></div>'+
     '<div style="height:14px"></div><button class="btn" id="crOk">Guardar</button>');
   pintar();
   $('crAdd').onclick = function(){ var c = $('crNuevo').value.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(c)) return toast('Revisa el correo.'); if (l.length>=5) return toast('Máximo 5 correos.'); if (l.indexOf(c)<0) l.push(c); $('crNuevo').value=''; pintar(); };
@@ -4187,8 +4194,8 @@ function enviar(){
   busy(true,'Generando Excel y PDF…','Matriz, datos de la instalación, programa de trabajo, información por puesto, EPP, protocolos y firmas'); progTramo(0, 100, 45);
   run('generarYEnviar', {empresa:cfg.empresa, centro:cfg.centro, respEjec:cfg.respEjec, respSeg:cfg.respSeg, email:cfg.email})
   .then(function(r){
-    busy(false);
-    avisar('Matriz enviada', 'Excel y PDF enviados a '+r.email, 'matriz');
+    busy(false); try{ localStorage.setItem('ultMatriz:'+cfg.centro, String(Date.now())); }catch(e){}
+    avisar('Matriz enviada', 'Excel y PDF enviados a '+r.email, 'matriz'); render(true);
     abrirSheet('<div style="text-align:center;padding:10px 4px"><div class="okbig">'+ico('correo')+'</div><h2>Matriz enviada</h2>'+
       '<p class="muted">Se envió a <b>'+esc(r.email)+'</b> el Excel, el PDF de la matriz y el PDF de información de riesgos ('+r.total+' riesgos).</p>'+
       (r.url&&r.url!=='#'?'<p><a href="'+esc(r.url)+'" target="_blank">Abrir la matriz en Google Sheets</a></p>':'')+
@@ -4214,7 +4221,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<26) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
+    if (!c.version || c.version<27) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
     else toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -4499,6 +4506,7 @@ document.addEventListener('click', function(e){
   else if (d.est){ cambiarEstado(d.id, d.est); }
   else if (d.evt){ abrirEvento(d.evt); }
   else if (d.reev){ reevaluar(d.reev); }
+  else if (d.edries){ reevaluar(d.edries, true); }
   else if (d.edtask){ editarDatosTarea(d.edtask); }
   else if (d.hist){ abrirHistorial(d.hist); }
   else if (d.deltask){ eliminarTarea(d.deltask); }
@@ -4586,7 +4594,7 @@ function init2(){
     run('getConfig').then(function(c){
       aplicarConfig(c);
       if (init.enlace) toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<26)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<27)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
       else if (!c.tieneClave && puede('admin') && !(c.usuario||{}).tieneClaveGemini) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       if (!abrirUnico()) render(true);
