@@ -1570,7 +1570,7 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '21.0';
+var VERSION_APP = '22.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -1792,12 +1792,14 @@ function abrirCentro(nombre, seccion){
     fCampo('fJornada', 'Horario o sistema de turnos (opcional)', f.jornada, 'Por ejemplo: lunes a viernes de 08:00 a 17:30, o sistema 4x4 de 12 horas.', ' placeholder="Ej: lunes a viernes, 08:00 a 17:30"')+
     lab('Fecha de la visita o levantamiento', 'Día en que recorriste la instalación para hacer la evaluación. Aparece en la ficha del Excel.')+'<input type="date" id="fVisita" value="'+esc(f.fechaVisita||'')+'">',
     n([x.nombre,x.direccion,f.comuna,f.region,f.jornadaTipo,f.turnos,f.fechaVisita]), 7, abierta==='centro', 'centro');
-  h += fSec('Personas trabajadoras',
-    '<p class="muted" style="margin:12px 0 0">Total de la instalación, no de un puesto. Aparece en la hoja "Datos del centro" de la matriz.</p>'+
-    '<div class="row"><div>'+lab('Hombres')+'<input type="number" min="0" inputmode="numeric" id="fH" value="'+esc(f.nHombres||'')+'"></div>'+
+  h += fSec('Personas trabajadoras <span class="muted" style="font-weight:400">(opcional)</span>',
+    '<p class="muted" style="margin:12px 0 0">Cantidad real de personas de toda la instalación, en general. Es opcional: si la dejas vacía, se usa la suma de las personas de los puestos que evalúes. La cantidad por puesto se sigue pidiendo en cada evaluación.</p>'+
+    lab('Total de personas trabajadoras')+'<input type="number" min="0" inputmode="numeric" id="fT" value="'+esc(f.nTotal||'')+'" placeholder="Ej: 45">'+
+    '<details style="margin-top:10px"'+((f.nHombres||f.nMujeres||f.nOtros)?' open':'')+'><summary class="muted">Detalle por sexo (opcional)</summary><div class="row">'+
+    '<div>'+lab('Hombres')+'<input type="number" min="0" inputmode="numeric" id="fH" value="'+esc(f.nHombres||'')+'"></div>'+
     '<div>'+lab('Mujeres')+'<input type="number" min="0" inputmode="numeric" id="fM" value="'+esc(f.nMujeres||'')+'"></div>'+
-    '<div>'+lab('Otras', 'Personas que no se identifican como hombre ni mujer. Déjalo vacío si no aplica.')+'<input type="number" min="0" inputmode="numeric" id="fO" value="'+esc(f.nOtros||'')+'"></div></div>',
-    (f.nHombres||f.nMujeres||f.nOtros)?1:0, 1, abierta==='personas', 'personas');
+    '<div>'+lab('Otras', 'Personas que no se identifican como hombre ni mujer. Déjalo vacío si no aplica.')+'<input type="number" min="0" inputmode="numeric" id="fO" value="'+esc(f.nOtros||'')+'"></div></div></details>',
+    (f.nTotal||f.nHombres||f.nMujeres||f.nOtros)?1:0, 1, abierta==='personas', 'personas');
   var sn = ['Sí','No','No aplica'];
   var yo = SRV.usuario || {};
   h += fSec('Evaluación psicosocial (CEAL-SM)',
@@ -1852,7 +1854,7 @@ function abrirCentro(nombre, seccion){
       ficha:{giro:v('fGiro'), codigoActividad:v('fCodAct'), representanteLegal:v('fRep'), rutRepresentante:v('fRutRep'), organismo:$('fOrg').value,
         comuna:v('fComuna'), region:$('fRegion').value, jornada:v('fJornada'), jornadaTipo:valorRadio('fJorTipo'), turnos:valorRadio('fTurnos'), reglamento:valorRadio('fRegl'), fechaVisita:$('fVisita').value,
         tipoEmpresa:valorRadio('fTipoEmp'), mandante:(valorRadio('fTipoEmp') && valorRadio('fTipoEmp')!=='Empresa principal') ? v('fMandante') : '',
-        nHombres:v('fH'), nMujeres:v('fM'), nOtros:v('fO'),
+        nTotal:v('fT'), nHombres:v('fH'), nMujeres:v('fM'), nOtros:v('fO'),
         asesorNombre:'', asesorRegistro:''}};
     if (logoNuevo!==undefined) d.logo = logoNuevo;
     d.responsables = resp;
@@ -2208,13 +2210,12 @@ function fichaFaltantes(ci){
   var f = (ci&&ci.ficha)||{}, falta = [];
   if (!f.giro) falta.push('actividad económica'); if (!f.organismo) falta.push('organismo administrador');
   if (!f.representanteLegal) falta.push('representante legal');
-  if (!((+f.nHombres||0)+(+f.nMujeres||0)+(+f.nOtros||0))) falta.push('número de trabajadores');
   return falta;
 }
 function renderInicio(){
   if (!cfg.centro) return renderCentros();
   var ci = centroInfo(cfg.centro), fi = (ci&&ci.ficha)||{}, h = '';
-  var nT = (+fi.nHombres||0)+(+fi.nMujeres||0)+(+fi.nOtros||0);
+  var nT = (+fi.nTotal||0) || ((+fi.nHombres||0)+(+fi.nMujeres||0)+(+fi.nOtros||0));
   h += '<div class="chead"><span class="fi">'+ico('carpeta')+'</span><div style="flex:1;min-width:0"><h2 style="margin:0">'+esc(nomC(cfg.centro))+'</h2>'+
     '<div class="muted">Empresa: <b style="color:var(--ink)">'+esc(ci?ci.razonSocial:'sin registrar')+'</b>'+(ci&&ci.rutEmpresa?'<br>RUT '+esc(ci.rutEmpresa):'')+(nT?'<br>'+nT+' personas trabajadoras':'')+'</div></div>'+
     (puede('validador')?'<button class="chip" id="btnFicha">'+ico('editar')+'Ficha</button>':'')+'</div>';
@@ -2732,6 +2733,38 @@ function siguiente(op){
   else { irA('matriz'); }
 }
 
+/** Edita proceso, puesto, lugar, tarea y personas de una tarea guardada, sin volver a analizarla. */
+function editarDatosTarea(id){
+  busy(true,'Cargando tarea…');
+  run('obtenerTarea', id).then(function(d){
+    busy(false);
+    var L = datos.tareas || [], tt = L.filter(function(x){ return x.id===id; })[0] || {};
+    var mismas = L.filter(function(x){ return x.puesto===(tt.puesto||d.puesto); }).length;
+    var procesos = unicosTxt(L.map(function(x){ return x.proceso; })), puestos = unicosTxt(L.map(function(x){ return x.puesto; }));
+    abrirSheet(cabecera('Editar datos de la tarea')+
+      '<p class="muted" style="margin-top:0">Cambia los datos sin volver a analizar la tarea. Los riesgos y medidas se mantienen.</p>'+
+      lab('Proceso')+'<input type="text" id="edPro" list="dlEdPro" value="'+esc(tt.proceso||d.proceso||'')+'" autocomplete="off"><datalist id="dlEdPro">'+procesos.map(function(p){ return '<option value="'+esc(p)+'">'; }).join('')+'</datalist>'+
+      lab('Puesto de trabajo')+'<input type="text" id="edPue" list="dlEdPue" value="'+esc(tt.puesto||d.puesto||'')+'" autocomplete="off"><datalist id="dlEdPue">'+puestos.map(function(p){ return '<option value="'+esc(p)+'">'; }).join('')+'</datalist>'+
+      lab('Lugar específico <span class="muted" style="font-weight:400">(opcional)</span>')+'<input type="text" id="edLug" value="'+esc(d.lugar||'')+'" autocomplete="off">'+
+      lab('Tarea')+'<textarea id="edTar" style="min-height:70px">'+esc(tt.tarea||d.tarea||'')+'</textarea>'+
+      '<div class="lbl"><label>Personas en el puesto</label></div><div class="row">'+
+        '<div><label>Hombres</label><input type="number" min="0" inputmode="numeric" id="edH" value="'+esc(d.hombres||'')+'"></div>'+
+        '<div><label>Mujeres</label><input type="number" min="0" inputmode="numeric" id="edM" value="'+esc(d.mujeres||'')+'"></div>'+
+        '<div><label>Otras</label><input type="number" min="0" inputmode="numeric" id="edO" value="'+esc(d.otros||'')+'"></div></div>'+
+      (mismas>1?'<label class="chk"><input type="checkbox" id="edTodo" checked><span>Aplicar proceso, puesto, lugar y personas a las '+mismas+' tareas de este puesto</span></label>':'')+
+      '<div style="height:10px"></div><button class="btn" id="edOk">Guardar cambios</button>');
+    $('edOk').onclick = function(){
+      var x = {proceso:$('edPro').value.trim(), puesto:$('edPue').value.trim(), lugar:$('edLug').value.trim(), tarea:$('edTar').value.trim(),
+        hombres:$('edH').value.trim(), mujeres:$('edM').value.trim(), otros:$('edO').value.trim(), todoPuesto: $('edTodo') ? $('edTodo').checked : false};
+      if (!x.proceso || !x.puesto || !x.tarea) return toast('Completa proceso, puesto y tarea.');
+      if (!(+x.hombres||+x.mujeres||+x.otros)) return toast('Indica cuántas personas trabajan en el puesto.');
+      busy(true,'Guardando…');
+      run('editarDatosTarea', id, x).then(function(r){ busy(false); cerrarSheet(); cargar('tareas'); cargar('personal'); cargar('cumpl');
+        toast(r.tareas>1 ? 'Datos actualizados en '+r.tareas+' tareas del puesto.' : 'Datos de la tarea actualizados.', 5000); })
+        .catch(function(e){ busy(false); toast(e.message); });
+    };
+  }).catch(function(e){ busy(false); toast(e.message); });
+}
 function reevaluar(id){
   busy(true,'Cargando tarea…');
   run('obtenerTarea', id).then(function(d){
@@ -2776,7 +2809,7 @@ function renderMatriz(){
       '<div class="acts">'+
         (t.estado==='Borrador'&&puede('evaluador')?'<button class="chip" data-est="Revisada" data-id="'+t.id+'">Marcar revisada</button>':'')+
         (t.estado!=='Validada'&&puede('validador')?'<button class="chip on" data-est="Validada" data-id="'+t.id+'">'+ico('ok')+'Validar</button>':'')+
-        (puede('evaluador')?'<button class="chip" data-reev="'+t.id+'">'+ico('rehacer')+'Reevaluar</button><button class="chip" data-evt="'+t.id+'">Registrar accidente</button>':'')+
+        (puede('evaluador')?'<button class="chip" data-edtask="'+t.id+'">'+ico('editar')+'Editar datos</button><button class="chip" data-reev="'+t.id+'">'+ico('rehacer')+'Reevaluar</button><button class="chip" data-evt="'+t.id+'">Registrar accidente</button>':'')+
         '<button class="chip" data-hist="'+t.id+'">'+ico('reloj')+'Historial</button>'+
         (puede('validador')?'<button class="chip" data-deltask="'+t.id+'" aria-label="Eliminar tarea" style="color:var(--int)">'+ico('borrar')+'</button>':'')+
       '</div></div>';
@@ -3981,7 +4014,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<21) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
+    if (!c.version || c.version<22) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
     else toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -4255,6 +4288,7 @@ document.addEventListener('click', function(e){
   else if (d.est){ cambiarEstado(d.id, d.est); }
   else if (d.evt){ abrirEvento(d.evt); }
   else if (d.reev){ reevaluar(d.reev); }
+  else if (d.edtask){ editarDatosTarea(d.edtask); }
   else if (d.hist){ abrirHistorial(d.hist); }
   else if (d.deltask){ eliminarTarea(d.deltask); }
   else if (d.fmed){ filtroMed = d.fmed; render(true); }
@@ -4334,7 +4368,7 @@ function init2(){
     run('getConfig').then(function(c){
       aplicarConfig(c);
       if (init.enlace) toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<21)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<22)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
       else if (!c.tieneClave && puede('admin') && !(c.usuario||{}).tieneClaveGemini) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       if (!abrirUnico()) render(true);
@@ -4373,7 +4407,7 @@ var Demo = (function(){
       var c = d.id ? DB.centros.filter(function(x){return x.id===d.id;})[0] : null;
       if (!c){ c = {id:'c'+(DB.n++)}; DB.centros.push(c); }
       var fi = Object.assign({}, c.ficha||{}, d.ficha||{}); Object.keys(fi).forEach(function(k){ if (!String(fi[k]||'').trim()) delete fi[k]; });
-      ['nHombres','nMujeres','nOtros'].forEach(function(k){ if (fi[k] && !/^\d+$/.test(fi[k])) throw new Error('El número de trabajadores debe ser un número entero.'); });
+      ['nTotal','nHombres','nMujeres','nOtros'].forEach(function(k){ if (fi[k] && !/^\d+$/.test(fi[k])) throw new Error('El número de personas trabajadoras debe ser un número entero.'); });
       Object.assign(c, {razonSocial:d.razonSocial, rutEmpresa:d.rutEmpresa?formatoRut(d.rutEmpresa):'', nombre:d.nombre, direccion:d.direccion, ceal:d.ceal||'Sin evaluar', carpeta:'',
         respEjecNombre:d.respEjecNombre||'', respEjecCargo:d.respEjecCargo||'', respSegNombre:d.respSegNombre||'', respSegCargo:d.respSegCargo||'', ficha:fi,
         tieneLogo: d.logo===undefined ? !!c.tieneLogo : !!(d.logo && d.logo.data), responsables: d.responsables || c.responsables || []});
@@ -4453,6 +4487,14 @@ var Demo = (function(){
       t.d.riesgos.forEach(function(r){cont[nivel(r.p*r.c)]++;max=Math.max(max,r.p*r.c);}); var ms=DB.medidas.filter(function(m){return m.tareaId===t.id;});
       return {id:t.id,proceso:t.proceso,puesto:t.puesto,tarea:t.tarea,estado:t.estado,aprobador:t.aprobador,fechaAprobacion:t.fechaAprobacion,proximaRevision:t.proximaRevision,
         reevaluar:t.reevaluar,motivo:t.motivo,creadoPor:t.creadoPor,modificadoPor:t.modificadoPor,version:t.version,conteo:cont,maxVep:max,riesgos:t.d.riesgos.length,medidas:ms.length,verificadas:ms.filter(function(m){return m.estado==='Verificada';}).length}; }); },
+    editarDatosTarea: function(id, d){ var t0 = DB.tareas.filter(function(x){return x.id===id;})[0]; if (!t0) throw new Error('No se encontró la tarea.');
+      if (!String(d.proceso||'').trim()||!String(d.puesto||'').trim()||!String(d.tarea||'').trim()) throw new Error('El proceso, el puesto y la tarea no pueden quedar vacíos.');
+      if (!(+d.hombres||+d.mujeres||+d.otros)) throw new Error('Indica cuántas personas trabajan en el puesto.');
+      var ant = t0.puesto, ts = DB.tareas.filter(function(x){ return x.id===id || (d.todoPuesto && x.centro===t0.centro && x.puesto===ant); });
+      ts.forEach(function(x){ x.proceso = d.proceso.trim(); x.puesto = d.puesto.trim(); x.d.proceso = x.proceso; x.d.puesto = x.puesto; x.d.lugar = d.lugar||'';
+        x.d.hombres = d.hombres; x.d.mujeres = d.mujeres; x.d.otros = d.otros; if (x.id===id){ x.tarea = d.tarea.trim(); x.d.tarea = x.tarea; } x.version = (x.version||1)+1; x.mod = Date.now(); H('Datos editados', x.id, ''); });
+      DB.medidas.forEach(function(m){ if (ts.some(function(x){ return x.id===m.tareaId; })) m.puesto = d.puesto.trim(); });
+      return {tareas:ts.length}; },
     obtenerTarea: function(id){ var t=DB.tareas.filter(function(x){return x.id===id;})[0]; return Object.assign(JSON.parse(JSON.stringify(t.d)),{id:id,eventos:t.eventos||[]}); },
     cambiarEstado: function(id,est,apr){ var t=DB.tareas.filter(function(x){return x.id===id;})[0]; t.estado=est; H(est==='Validada'?'Validada':'Marcada como '+est.toLowerCase(), id); if(est==='Validada'){t.aprobador=apr;t.fechaAprobacion=new Date().toISOString();t.proximaRevision=new Date(Date.now()+365*864e5).toISOString();} return {}; },
     eliminarTarea: function(id){ DB.tareas=DB.tareas.filter(function(x){return x.id!==id;}); DB.medidas=DB.medidas.filter(function(m){return m.tareaId!==id;}); return {}; },
@@ -4503,8 +4545,8 @@ var Demo = (function(){
     cumplimiento: function(c){
       var ts = DB.tareas.filter(centro(c)), val = ts.filter(function(t){return t.estado==='Validada';}).length, ms = this.listarMedidas(c);
       var ct = DB.centros.filter(function(x){ return x.id===c; })[0] || {}, fi = ct.ficha || {}, nT = (+fi.nHombres||0)+(+fi.nMujeres||0)+(+fi.nOtros||0);
-      var falt = ['giro','organismo','representanteLegal'].filter(function(k){ return !fi[k]; }).length + (nT?0:1);
-      var it = [{id:'ficha', titulo:'Ficha de la instalación', ok:!falt, detalle: falt ? 'Faltan '+falt+' dato(s): actividad, organismo administrador, representante legal o dotación' : 'Completos', accion:'centro'},
+      var falt = ['giro','organismo','representanteLegal'].filter(function(k){ return !fi[k]; }).length;
+      var it = [{id:'ficha', titulo:'Ficha de la instalación', ok:!falt, detalle: falt ? 'Faltan '+falt+' dato(s): actividad, organismo administrador o representante legal' : 'Completos', accion:'centro'},
         {titulo:'Matriz de riesgos evaluada y validada', ok:ts.length>0&&val===ts.length, detalle:val+' de '+ts.length+' tareas validadas', accion:'matriz'},
         {titulo:'Evaluación psicosocial (CEAL-SM)', ok:ct.ceal && ct.ceal!=='Sin evaluar', detalle:ct.ceal||'Sin evaluar', accion:'centro'},
         {titulo:'Programa de trabajo: medidas al día', ok:ms.length>0&&!ms.some(function(m){return m.vencida;}), detalle:ms.filter(function(m){return m.estado==='Verificada';}).length+' de '+ms.length+' verificadas', accion:'medidas'},
