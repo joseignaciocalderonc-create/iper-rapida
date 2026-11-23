@@ -1570,7 +1570,7 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '22.0';
+var VERSION_APP = '24.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -1768,6 +1768,7 @@ function abrirCentro(nombre, seccion){
     lab('Razón social', 'Nombre legal de la entidad empleadora, tal como figura en el SII. Todas sus instalaciones quedan agrupadas bajo este nombre.')+
       '<input type="text" id="cRs" list="dlRs" value="'+esc(x.razonSocial)+'" autocomplete="off"><datalist id="dlRs">'+rsList.map(function(r){return '<option value="'+esc(r)+'">';}).join('')+'</datalist>'+
     fCampo('cRut', 'RUT de la empresa', x.rutEmpresa, 'RUT de la entidad empleadora. La app revisa que el dígito verificador sea correcto.', ' inputmode="text"')+
+    fCampo('fSigla', 'Sigla de la empresa (opcional)', f.sigla, 'Va antes del código de cada documento, por ejemplo LG-IRL-01. Si la dejas vacía, se usan las iniciales de la razón social.', ' placeholder="Ej: LG" maxlength="8" style="text-transform:uppercase"')+
     fCampo('fGiro', 'Actividad económica', f.giro, 'Giro principal de la empresa según el SII. Ayuda a ubicar el contexto de los riesgos y aparece en la ficha del Excel.')+
     fCampo('fCodAct', 'Código de actividad SII', f.codigoActividad, 'Código numérico de la actividad económica. Es opcional.', ' inputmode="numeric"')+
     fCampo('fRep', 'Representante legal', f.representanteLegal, 'Nombre completo de quien representa legalmente a la empresa.')+
@@ -1790,7 +1791,8 @@ function abrirCentro(nombre, seccion){
     opcionesRadio('fTurnos', [['Sin turnos','No','Todas las personas trabajan en el mismo horario.'],['Turno fijo','Sí, turno fijo','Cada persona trabaja siempre en el mismo horario (por ejemplo, siempre de noche).'],
       ['Turnos rotativos','Sí, turnos rotativos','Las personas cambian de horario (por ejemplo, una semana de día y otra de noche).']], f.turnos)+
     fCampo('fJornada', 'Horario o sistema de turnos (opcional)', f.jornada, 'Por ejemplo: lunes a viernes de 08:00 a 17:30, o sistema 4x4 de 12 horas.', ' placeholder="Ej: lunes a viernes, 08:00 a 17:30"')+
-    lab('Fecha de la visita o levantamiento', 'Día en que recorriste la instalación para hacer la evaluación. Aparece en la ficha del Excel.')+'<input type="date" id="fVisita" value="'+esc(f.fechaVisita||'')+'">',
+    lab('Fecha de la visita o levantamiento', 'Día en que recorriste la instalación para hacer la evaluación. Aparece en la ficha del Excel.')+'<input type="date" id="fVisita" value="'+esc(f.fechaVisita||'')+'">'+
+    fCampo('fFrase', 'Frase al pie de los documentos (opcional)', f.frasePie, 'Aparece al pie de cada hoja de la IRL y los demás registros. Déjala vacía si no se usa.', ' placeholder="Ej: Trabajando para crear una cultura preventiva"'),
     n([x.nombre,x.direccion,f.comuna,f.region,f.jornadaTipo,f.turnos,f.fechaVisita]), 7, abierta==='centro', 'centro');
   h += fSec('Personas trabajadoras <span class="muted" style="font-weight:400">(opcional)</span>',
     '<p class="muted" style="margin:12px 0 0">Cantidad real de personas de toda la instalación, en general. Es opcional: si la dejas vacía, se usa la suma de las personas de los puestos que evalúes. La cantidad por puesto se sigue pidiendo en cada evaluación.</p>'+
@@ -1851,10 +1853,10 @@ function abrirCentro(nombre, seccion){
     var v = function(id){ return $(id).value.trim(); };
     var d = {id:c?c.id:null, razonSocial:v('cRs'), rutEmpresa:v('cRut'), nombre:v('cNom'), direccion:v('cDir'), ceal:$('cCeal').value,
       respEjecNombre:v('cEjN'), respEjecCargo:v('cEjC'), respSegNombre:v('cSgN'), respSegCargo:v('cSgC'),
-      ficha:{giro:v('fGiro'), codigoActividad:v('fCodAct'), representanteLegal:v('fRep'), rutRepresentante:v('fRutRep'), organismo:$('fOrg').value,
+      ficha:{sigla:v('fSigla').toUpperCase(), giro:v('fGiro'), codigoActividad:v('fCodAct'), representanteLegal:v('fRep'), rutRepresentante:v('fRutRep'), organismo:$('fOrg').value,
         comuna:v('fComuna'), region:$('fRegion').value, jornada:v('fJornada'), jornadaTipo:valorRadio('fJorTipo'), turnos:valorRadio('fTurnos'), reglamento:valorRadio('fRegl'), fechaVisita:$('fVisita').value,
         tipoEmpresa:valorRadio('fTipoEmp'), mandante:(valorRadio('fTipoEmp') && valorRadio('fTipoEmp')!=='Empresa principal') ? v('fMandante') : '',
-        nTotal:v('fT'), nHombres:v('fH'), nMujeres:v('fM'), nOtros:v('fO'),
+        frasePie:v('fFrase'), nTotal:v('fT'), nHombres:v('fH'), nMujeres:v('fM'), nOtros:v('fO'),
         asesorNombre:'', asesorRegistro:''}};
     if (logoNuevo!==undefined) d.logo = logoNuevo;
     d.responsables = resp;
@@ -1875,7 +1877,7 @@ function abrirCentro(nombre, seccion){
 /* Una evaluación = un puesto con una o varias tareas. Se pueden tener varias a medias.
    Los textos se guardan en el teléfono (localStorage) y las fotos en IndexedDB. */
 function nuevoPuesto(){ return {bid:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), proceso:'',puesto:'',lugar:'',hombres:'',mujeres:'',otros:'',
-  sensibles:{}, fotos:[], relato:'', tareas:[], idx:0, exp:-1, enCola:false, paso:1, actualizado:Date.now(), demo:enDemo()}; }
+  sensibles:{}, fotos:[], relato:'', epp:[], ptsTexto:'', medidasPuesto:'', tareas:[], idx:0, exp:-1, enCola:false, paso:1, actualizado:Date.now(), demo:enDemo()}; }
 function nuevaTareaItem(medidas){ return {id:null, tarea:'', rutinaria:true, medidasTexto:medidas||'', epp:[], herramientas:[], accesorios:[], quimicos:[], riesgos:[], medidasActuales:[], observacionesFoto:'', analizado:false, guardada:false, aceptada:false}; }
 function tk(){ return cur.tareas[cur.idx] || cur.tareas[0]; }
 
@@ -2325,6 +2327,13 @@ function renderNueva(){
       '<details style="margin-top:12px"'+(Object.keys(cur.sensibles).some(function(k){return cur.sensibles[k];})?' open':'')+'><summary class="muted">Personas especialmente sensibles, si hay</summary><div class="chips" style="margin-top:8px">'+
       SENS.map(function(s){return '<button class="chip '+(cur.sensibles[s[0]]?'on':'')+'" data-sens="'+s[0]+'">'+s[1]+'</button>';}).join('')+'</div></details>'+
     '</div>'+
+    '<div class="card"><div class="lbl" style="margin:0"><h3 style="margin:0">Del cargo <span class="muted" style="font-weight:400">(opcional)</span></h3>'+ayuda('Datos generales del puesto que aplican a todas sus tareas. Puedes pegar listados que te entregue la empresa: uno por línea. Se usan en el análisis de la matriz, en la IRL, en la entrega de EPP y en la difusión de procedimientos.')+'</div>'+
+      '<label class="lbl"><span>EPP del puesto</span></label>'+chipsEppPuesto()+
+      lab('Procedimientos de trabajo seguro del cargo', 'Uno por línea, con su código si lo tiene. Ej: PTS-01 Uso de cuchillos. Cada uno tendrá su registro de difusión y capacitación.')+
+      '<textarea data-f="ptsTexto" style="min-height:70px" placeholder="PTS-01 Uso de cuchillos&#10;PTS-02 Operación de freidora">'+esc(cur.ptsTexto||'')+'</textarea>'+
+      lab('Medidas preventivas generales que ya existen', 'Las que aplican a todo el puesto (capacitaciones, señalización, inspecciones, procedimientos). Una por línea. La IA las considera en cada tarea.')+
+      '<textarea data-f="medidasPuesto" style="min-height:70px" placeholder="Una por línea, o pega el listado de la empresa">'+esc(cur.medidasPuesto||'')+'</textarea>'+
+    '</div>'+
     '';
     bar = '<button class="btn sec" style="flex:.4" id="btnSalir">Resumen</button><button class="btn" data-go="2">Continuar</button>';
   }
@@ -2344,10 +2353,11 @@ function renderNueva(){
         lab('Tipo', 'Rutinaria: se hace de forma habitual. No rutinaria: ocasional, como mantenciones, limpiezas profundas o emergencias.')+'<div class="toggle"><button data-rut="1" data-k="'+k+'" class="'+(t.rutinaria?'on':'')+'">Rutinaria</button><button data-rut="0" data-k="'+k+'" class="'+(!t.rutinaria?'on':'')+'">No rutinaria</button></div>'+
         '<label class="lbl"><span>Medidas preventivas actuales'+ayuda('Lo que ya existe hoy para controlar los riesgos de esta tarea: capacitación, procedimientos, elementos de protección personal, señalización, protecciones en máquinas. Déjalo vacío si no hay nada.')+'</span>'+micBtn('t:'+k+':medidasTexto')+'</label>'+
         '<textarea data-p="t:'+k+':medidasTexto" style="min-height:70px" placeholder="Escribe o dicta lo que existe hoy">'+esc(t.medidasTexto)+'</textarea>'+
-        chipsEpp(t,k)+elementosTarea(t,k)+'<details style="margin-top:10px"><summary class="muted">Agregar medidas frecuentes</summary><div class="chips" style="margin-top:8px">'+MEDIDAS_RAPIDAS.map(function(m){return '<button class="chip" style="padding:5px 10px;font-size:12px" data-med="'+esc(m)+'" data-k="'+k+'">+ '+m+'</button>';}).join('')+'</div></details>'+
+        elementosTarea(t,k)+'<details style="margin-top:10px"><summary class="muted">Agregar medidas frecuentes</summary><div class="chips" style="margin-top:8px">'+MEDIDAS_RAPIDAS.map(function(m){return '<button class="chip" style="padding:5px 10px;font-size:12px" data-med="'+esc(m)+'" data-k="'+k+'">+ '+m+'</button>';}).join('')+'</div></details>'+
       '</div>';
     }).join('');
     h += '<div class="row"><button class="btn sec" id="btnAddTarea">'+ico('mas')+'Agregar tarea</button><button class="btn sec" id="btnBiblio">'+ico('libro')+'Tareas tipo</button></div>';
+    h += '<button class="btn ghost" style="width:100%;margin-top:-4px" id="btnListaTareas">'+ico('copiar')+'Pegar listado de tareas</button>';
     h += '<div class="card"><h3>Fotografías del puesto <span class="muted" style="font-weight:400">(opcional)</span></h3><p class="muted" style="margin:0 0 10px">Fotos del lugar donde se hacen estas tareas. La IA las revisa al analizar y lo que vea solo en las fotos te lo pedirá confirmar. Hasta 4 fotos, sin rostros.</p>'+
       '<div class="photos">'+cur.fotos.map(function(f,i){return '<div class="ph"><img src="'+f.thumb+'"><b data-delph="'+i+'">×</b></div>';}).join('')+
       (cur.fotos.length<4?'<label class="addph">'+ico('foto')+'Agregar<input id="foto" type="file" accept="image/*" multiple class="hidden"></label>':'')+'</div>'+'</div>';
@@ -2699,7 +2709,8 @@ function guardarTodas(){
       busy(true,'Guardando tarea '+(n+1)+' de '+lista.length+'…'); progPintar(n/lista.length*100);
       var copia = {id:t.id, proceso:cur.proceso, puesto:cur.puesto, tarea:t.tarea, lugar:cur.lugar, rutinaria:t.rutinaria,
         hombres:cur.hombres, mujeres:cur.mujeres, otros:cur.otros, sensibles:cur.sensibles, medidasTexto:t.medidasTexto,
-        medidasActuales:t.medidasActuales, observacionesFoto:t.observacionesFoto, riesgos:t.riesgos, ceal:cealCentro(cur.centro), epp:t.epp||[],
+        medidasActuales:t.medidasActuales, observacionesFoto:t.observacionesFoto, riesgos:t.riesgos, ceal:cealCentro(cur.centro), epp:eppDeTodo(cur),
+        pts:lineasPts(cur.ptsTexto||''), medidasPuesto:cur.medidasPuesto||'',
         herramientas:t.herramientas||[], accesorios:t.accesorios||[], quimicos:t.quimicos||[], quimicosAnalisis:t.quimicosAnalisis||[]};
       var ci = centroInfo(cur.centro);
       return run('guardarTarea', JSON.parse(JSON.stringify(copia)), {empresa:ci?ci.razonSocial:cfg.empresa, centro:cur.centro, respEjec:cfg.respEjec}).then(function(r){
@@ -2726,7 +2737,7 @@ function siguiente(op){
   if (terminada) borrarBorrador(base.bid);
   cur = null;
   if (op==='tareas'){
-    nuevaEvaluacion({centro:base.centro, proceso:base.proceso, puesto:base.puesto, lugar:base.lugar, hombres:base.hombres, mujeres:base.mujeres, otros:base.otros, sensibles:base.sensibles, fotos:base.fotos, ultimasMedidas:ult});
+    nuevaEvaluacion({centro:base.centro, proceso:base.proceso, puesto:base.puesto, lugar:base.lugar, hombres:base.hombres, mujeres:base.mujeres, otros:base.otros, sensibles:base.sensibles, fotos:base.fotos, ultimasMedidas:ult, epp:eppDeTodo(base), ptsTexto:base.ptsTexto||'', medidasPuesto:base.medidasPuesto||''});
     fotosDB('guardar', cur.bid, cur.fotos);
   } else if (op==='puesto'){ nuevaEvaluacion({centro:base.centro, proceso:base.proceso, lugar:base.lugar}); }
   else if (op==='proceso'){ nuevaEvaluacion({centro:base.centro}); }
@@ -2769,9 +2780,9 @@ function reevaluar(id){
   busy(true,'Cargando tarea…');
   run('obtenerTarea', id).then(function(d){
     busy(false);
-    var ev = Object.assign(nuevoPuesto(), {centro:cfg.centro, proceso:d.proceso, puesto:d.puesto, lugar:d.lugar||'', hombres:d.hombres, mujeres:d.mujeres, otros:d.otros, sensibles:d.sensibles||{}, reevaluando:true});
+    var ev = Object.assign(nuevoPuesto(), {centro:cfg.centro, proceso:d.proceso, puesto:d.puesto, lugar:d.lugar||'', hombres:d.hombres, mujeres:d.mujeres, otros:d.otros, sensibles:d.sensibles||{}, reevaluando:true, epp:d.epp||[], ptsTexto:(d.pts||[]).join('\n'), medidasPuesto:d.medidasPuesto||''});
     var t = nuevaTareaItem(d.medidasTexto||'');
-    Object.assign(t, {id:d.id, tarea:d.tarea, epp:d.epp||[], herramientas:d.herramientas||[], accesorios:d.accesorios||[], quimicos:d.quimicos||[], quimicosAnalisis:d.quimicosAnalisis||[], rutinaria:d.rutinaria!==false, riesgos:d.riesgos||[], medidasActuales:d.medidasActuales||[], observacionesFoto:d.observacionesFoto||'', analizado:true, cambiada:true});
+    Object.assign(t, {id:d.id, tarea:d.tarea, epp:[], herramientas:d.herramientas||[], accesorios:d.accesorios||[], quimicos:d.quimicos||[], quimicosAnalisis:d.quimicosAnalisis||[], rutinaria:d.rutinaria!==false, riesgos:d.riesgos||[], medidasActuales:d.medidasActuales||[], observacionesFoto:d.observacionesFoto||'', analizado:true, cambiada:true});
     t.riesgos.forEach(function(r){ r.confirmado = true; });
     ev.tareas = [t]; cur = ev; paso = 2; tab = 'evaluar'; guardarBorrador(); render();
     toast(d.eventos && d.eventos.length ? 'Revisa las medidas y vuelve a analizar: la IA considerará el '+d.eventos[d.eventos.length-1].tipo.toLowerCase()+' registrado.' : 'Revisa los datos y vuelve a analizar, o ve directo a Resultados.', 6000);
@@ -3620,13 +3631,13 @@ var EPP_FRECUENTES = ['Zapatos de seguridad','Casco de seguridad','Guantes de ca
 function eppDelPuesto(excepto){ var l = []; cur.tareas.forEach(function(t){ if (t===excepto) return; (t.epp||[]).forEach(function(e){ l.push(e); }); }); return eppUnicos(l); }
 /* ---- Herramientas, accesorios y productos químicos de la tarea (sirven para el análisis y la IRL) ---- */
 var ELEMENTOS = {
-  herramientas: ['Herramientas y equipos', 'Herramienta o equipo', 'Ej: esmeril angular, transpaleta manual', 'Para qué se usa (ej: corte de perfiles metálicos)'],
-  accesorios: ['Accesorios', 'Accesorio', 'Ej: escalera de tijera, eslinga, extensión eléctrica', 'Para qué se usa (ej: acceso a estanterías altas)'],
-  quimicos: ['Productos químicos', 'Producto químico', 'Ej: desengrasante, cloro, diluyente', 'Uso y forma (ej: limpieza de piezas con paño)']
+  herramientas: ['Maquinarias y/o equipos', 'Maquinaria o equipo', 'Ej: horno, freidora, grúa horquilla, esmeril angular', 'Para qué se usa (ej: cocción de alimentos)'],
+  accesorios: ['Herramientas y/o accesorios', 'Herramienta o accesorio', 'Ej: cuchillos, escalera de tijera, eslinga', 'Para qué se usa (ej: corte de alimentos)'],
+  quimicos: ['Productos químicos', 'Producto químico', 'Ej: desengrasante, cloro, diluyente', 'Uso y forma (ej: limpieza de superficies con paño)']
 };
 function elementosTarea(t, k){
   var n = (t.herramientas||[]).length + (t.accesorios||[]).length + (t.quimicos||[]).length;
-  return '<details class="elem"'+(n?' open':'')+' style="margin-top:12px"><summary><b>Herramientas, accesorios y productos químicos</b>'+(n?' <span class="muted">('+n+')</span>':'')+'</summary>'+
+  return '<details class="elem"'+(n?' open':'')+' style="margin-top:12px"><summary><b>Maquinarias, herramientas y productos químicos</b>'+(n?' <span class="muted">('+n+')</span>':'')+'</summary>'+
     '<p class="muted" style="margin:6px 0 4px;font-size:13px">Lo que usa o manipula la persona en esta tarea, con una descripción simple. La IA lo considera en el análisis; los productos químicos salen en la IRL con sus riesgos, consecuencias y medidas.</p>'+
     Object.keys(ELEMENTOS).map(function(tipo){
       var L = t[tipo] || [];
@@ -3644,12 +3655,44 @@ function agregarElemento(k, tipo){
     (otros.length ? lab('Usados en otras tareas del puesto')+'<div class="chips">'+otros.map(function(x,i){ return '<button type="button" class="chip" data-elot="'+i+'">'+ico('mas')+esc(x.n)+'</button>'; }).join('')+'</div>' : '')+
     lab('Nombre')+'<input type="text" id="elN" autocomplete="off" placeholder="'+esc(E[2])+'">'+
     lab('Descripción simple (opcional)')+'<input type="text" id="elD" autocomplete="off" placeholder="'+esc(E[3])+'">'+
+    '<details style="margin-top:10px"><summary class="muted">Pegar un listado</summary><p class="muted" style="font-size:13px;margin:6px 0">Uno por línea. Si quieres, agrega la descripción después de dos puntos. Ej: Cuchillos: corte de alimentos</p>'+
+    '<textarea id="elLista" style="min-height:110px"></textarea></details>'+
     '<div style="height:12px"></div><button class="btn" id="elOk">Agregar</button>');
   var fin = function(x){ t[tipo] = (t[tipo]||[]).concat([x]); if (t.analizado) t.cambiada = true; guardarBorrador(); cerrarSheet(); render(true); };
   document.querySelectorAll('[data-elot]').forEach(function(b){ b.onclick = function(){ fin(otros[+b.dataset.elot]); }; });
-  $('elOk').onclick = function(){ var n = $('elN').value.trim(), d = $('elD').value.trim(); if (!n) return toast('Escribe el nombre.');
-    if (ya.indexOf(n.toLowerCase())>=0) return toast('Ya está en la lista.'); fin({n:n, d:d}); };
+  $('elOk').onclick = function(){ var n = $('elN').value.trim(), d = $('elD').value.trim();
+    var lista = $('elLista').value.split(/\n+/).map(function(x){ x = x.replace(/^[\s•\-–*·]+/,'').replace(/^\d{1,3}[.)\-]\s*/,'').trim(); if (!x) return null;
+      var m = x.match(/^([^:]{2,80}):\s*(.+)$/); return m ? {n:m[1].trim(), d:m[2].trim()} : {n:x, d:''}; }).filter(Boolean);
+    if (n) lista.unshift({n:n, d:d});
+    if (!lista.length) return toast('Escribe el nombre o pega un listado.');
+    var nuevos = []; lista.forEach(function(x){ var key = x.n.toLowerCase(); if (ya.indexOf(key)<0){ ya.push(key); nuevos.push(x); } });
+    if (!nuevos.length) return toast('Ya están en la lista.');
+    t[tipo] = (t[tipo]||[]).concat(nuevos); if (t.analizado) t.cambiada = true; guardarBorrador(); cerrarSheet(); render(true); if (nuevos.length>1) toast(nuevos.length+' agregados.'); };
   setTimeout(function(){ try{ $('elN').focus(); }catch(e){} }, 300);
+}
+function eppDeTodo(ev){ ev = ev || cur; var l = (ev.epp||[]).slice(); (ev.tareas||[]).forEach(function(t){ (t.epp||[]).forEach(function(e){ l.push(e); }); }); return eppUnicos(l); }
+function chipsEppPuesto(){
+  if (!cur.epp || !cur.epp.length){ var v = eppDeTodo(); if (v.length) cur.epp = v; } // borradores antiguos: EPP que estaban por tarea
+  return '<div class="chips">'+(cur.epp||[]).map(function(e,i){ return '<span class="chip on">'+esc(e)+'<button type="button" class="x" style="font-size:16px;padding:0 0 0 4px" data-qeppp="'+i+'" aria-label="Quitar">×</button></span>'; }).join('')+
+    '<button class="chip" type="button" data-addepp="-1">'+ico('mas')+'EPP</button></div>';
+}
+/** Tareas pegadas como listado (una por línea): se agregan al puesto. */
+function pegarTareas(){
+  abrirSheet(cabecera('Pegar listado de tareas')+'<p class="muted" style="margin-top:0">Una tarea por línea. Puedes copiarlas desde el listado que te entregó la empresa (Word, Excel o correo). Las viñetas y números se quitan solos.</p>'+
+    '<textarea id="ltTxt" style="min-height:200px" placeholder="Recepción de mercadería&#10;Almacenamiento en racks&#10;Despacho a clientes"></textarea>'+
+    '<label class="chk"><input type="checkbox" id="ltNoRut"><span>Son tareas no rutinarias (ocasionales)</span></label>'+
+    '<div style="height:8px"></div><button class="btn" id="ltOk">Agregar tareas</button>');
+  $('ltOk').onclick = function(){
+    var l = $('ltTxt').value.split(/\n+/).map(function(x){ return x.replace(/^[\s•\-–*·>]+/,'').replace(/^\d{1,3}[.)\-]\s*/,'').trim(); }).filter(function(x){ return x.length>2; });
+    if (!l.length) return toast('Pega al menos una tarea.');
+    var ult = cur.tareas.length ? cur.tareas[cur.tareas.length-1].medidasTexto : '';
+    cur.tareas = cur.tareas.filter(function(t){ return t.tarea.trim() || t.analizado; });
+    var vistos = cur.tareas.map(function(t){ return normTxt(t.tarea); }), n = 0;
+    l.forEach(function(x){ if (vistos.indexOf(normTxt(x))>=0) return; var t = nuevaTareaItem(ult); t.tarea = x; t.rutinaria = !$('ltNoRut').checked; cur.tareas.push(t); vistos.push(normTxt(x)); n++; });
+    if (!cur.tareas.length) cur.tareas.push(nuevaTareaItem());
+    guardarBorrador(); cerrarSheet(); render(); toast(n+' tarea(s) agregada(s). Revisa y toca Analizar.', 5000);
+  };
+  setTimeout(function(){ try{ $('ltTxt').focus(); }catch(e){} }, 300);
 }
 function chipsEpp(t, k){
   return '<label class="lbl"><span>EPP que usa en esta tarea'+ayuda('Elementos de protección personal que la persona usa hoy en esta tarea. Se usan en el análisis y en el registro de entrega de EPP.')+'</span></label>'+
@@ -3657,19 +3700,28 @@ function chipsEpp(t, k){
     '<button class="chip" type="button" data-addepp="'+k+'">'+ico('mas')+'EPP</button></div>';
 }
 function elegirEpp(k){
-  var t = cur.tareas[k], sel = eppUnicos(t.epp||[]), opciones = eppUnicos(sel.concat(eppDelPuesto(null), EPP_FRECUENTES));
+  var t = k<0 ? cur : cur.tareas[k], sel = eppUnicos(t.epp||[]), opciones = eppUnicos(sel.concat(eppDelPuesto(null), EPP_FRECUENTES));
   var pintar = function(){ $('epLista').innerHTML = opciones.map(function(e){ return '<button type="button" class="chip'+(sel.indexOf(e)>=0?' on':'')+'" data-ep="'+esc(e)+'">'+esc(e)+'</button>'; }).join('');
     $('epLista').querySelectorAll('[data-ep]').forEach(function(b){ b.onclick = function(){ var e = b.dataset.ep, i = sel.indexOf(e); if (i>=0) sel.splice(i,1); else sel.push(e); pintar(); }; }); };
-  abrirSheet(cabecera('EPP de la tarea '+(k+1))+'<div class="chips" id="epLista"></div>'+lab('Otro EPP')+
+  abrirSheet(cabecera(k<0?'EPP del puesto':'EPP de la tarea '+(k+1))+'<div class="chips" id="epLista"></div>'+lab('Otro EPP')+
     '<div class="row"><div style="flex:2"><input type="text" id="epOtro" autocomplete="off"></div><div><button class="btn sec" type="button" id="epAdd">Agregar</button></div></div>'+
+    '<details style="margin-top:10px"><summary class="muted">Pegar listado de EPP</summary><textarea id="epLista2" style="min-height:110px;margin-top:6px" placeholder="Uno por línea"></textarea><button class="btn sec" type="button" id="epPegar" style="margin-top:6px">Agregar del listado</button></details>'+
     '<div style="height:14px"></div><button class="btn" id="epOk">Listo</button>');
   pintar();
   $('epAdd').onclick = function(){ var e = $('epOtro').value.trim(); if (!e) return; var k = eppClave(e), ya = opciones.filter(function(o){ return eppClave(o)===k; })[0];
     if (ya){ e = ya; toast('Ya estaba en la lista como "'+ya+'".'); } else opciones.push(e); if (sel.indexOf(e)<0) sel.push(e); $('epOtro').value=''; pintar(); };
-  $('epOk').onclick = function(){ t.epp = eppUnicos(sel); if (t.analizado) t.cambiada = true; guardarBorrador(); cerrarSheet(); render(true); };
+  $('epPegar').onclick = function(){ var n = 0; $('epLista2').value.split(/\n+/).map(function(x){ return x.replace(/^[\s•\-–*·]+/,'').replace(/^\d{1,3}[.)\-]\s*/,'').trim(); }).filter(String).forEach(function(e){
+      var kk = eppClave(e), ya = sel.filter(function(o){ return eppClave(o)===kk; })[0]; if (ya) return; // ya marcado con otro nombre
+      opciones = opciones.filter(function(o){ return eppClave(o)!==kk; }); opciones.push(e); sel.push(e); n++; });
+    $('epLista2').value = ''; pintar(); toast(n+' EPP agregado(s).'); };
+  $('epOk').onclick = function(){ t.epp = eppUnicos(sel);
+    if (k<0) cur.tareas.forEach(function(x){ x.epp = []; if (x.analizado && !x.guardada) x.cambiada = true; }); else if (t.analizado) t.cambiada = true;
+    guardarBorrador(); cerrarSheet(); render(true); };
 }
 /** Al agregar tareas nuevas: pregunta qué EPP de las otras tareas del puesto se repiten (no se copian solos). */
-function preguntarEpp(nuevas, listo){
+function preguntarEpp(nuevas, listo){ if (listo) listo(); return; // los EPP se piden una vez, en el cargo (paso 1)
+}
+function preguntarEppAntiguo(nuevas, listo){
   var disp = []; cur.tareas.forEach(function(t){ if (nuevas.indexOf(t)>=0) return; (t.epp||[]).forEach(function(e){ disp.push(e); }); }); disp = eppUnicos(disp);
   if (!disp.length || !nuevas.length){ if (listo) listo(); return; }
   if (cur.eppComun){ // ya se respondió en esta evaluación: se aplica solo, sin volver a preguntar
@@ -3734,7 +3786,8 @@ function runJob(id, fn){
 function payloadPuesto(ev, lista){
   return {centro:ev.centro, proceso:ev.proceso, puesto:ev.puesto, lugar:ev.lugar, hombres:ev.hombres, mujeres:ev.mujeres, otros:ev.otros, sensibles:ev.sensibles,
     ceal:cealCentro(ev.centro), sugerir:!ev.sugeridasVistas, corregir:true, fotos:ev.fotos.map(function(f){ return {mime:f.mime, data:f.data}; }),
-    tareas:lista.map(function(t){ return {id:t.id, tarea:t.tarea, rutinaria:t.rutinaria, medidasTexto:t.medidasTexto, epp:t.epp||[], herramientas:t.herramientas||[], accesorios:t.accesorios||[], quimicos:t.quimicos||[]}; })};
+    epp:eppDeTodo(ev), pts:lineasPts(ev.ptsTexto||''), medidasPuesto:ev.medidasPuesto||'',
+    tareas:lista.map(function(t){ return {id:t.id, tarea:t.tarea, rutinaria:t.rutinaria, medidasTexto:t.medidasTexto, epp:eppDeTodo(ev), herramientas:t.herramientas||[], accesorios:t.accesorios||[], quimicos:t.quimicos||[]}; })};
 }
 /**
  * Corrección de redacción + análisis de todas las tareas en el servidor, en una sola solicitud.
@@ -4014,7 +4067,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<22) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
+    if (!c.version || c.version<24) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
     else toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -4253,6 +4306,8 @@ document.addEventListener('click', function(e){
   if (b.id==='btnPlanilla'){ descargarPlanilla(); return; }
   if (b.id==='btnCargarNomina'){ if (enDemo()) return versionCompleta('Cargar la nómina desde Excel'); $('fNomina').value = ''; $('fNomina').click(); return; }
   if (d.addepp!=null){ elegirEpp(+d.addepp); return; }
+  if (d.qeppp!=null){ cur.epp.splice(+d.qeppp,1); cur.tareas.forEach(function(x){ x.epp = []; if (x.analizado && !x.guardada) x.cambiada = true; }); guardarBorrador(); render(true); return; }
+  if (b.id==='btnListaTareas'){ pegarTareas(); return; }
   if (d.addel){ var ae = d.addel.split(':'); agregarElemento(+ae[0], ae[1]); return; }
   if (d.qel){ var qx = d.qel.split(':'), tx = cur.tareas[+qx[0]]; (tx[qx[1]]||[]).splice(+qx[2],1); if (tx.analizado) tx.cambiada = true; guardarBorrador(); render(true); return; }
   if (d.qepp){ var qe = d.qepp.split(':'), tq = cur.tareas[+qe[0]]; tq.epp.splice(+qe[1],1); if (tq.analizado) tq.cambiada = true; guardarBorrador(); render(true); return; }
@@ -4368,7 +4423,7 @@ function init2(){
     run('getConfig').then(function(c){
       aplicarConfig(c);
       if (init.enlace) toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<22)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<24)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
       else if (!c.tieneClave && puede('admin') && !(c.usuario||{}).tieneClaveGemini) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       if (!abrirUnico()) render(true);
