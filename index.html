@@ -87,6 +87,7 @@
   .toggle button{flex:1;border:0;background:none;padding:9px;border-radius:8px;font:inherit;font-weight:700;color:var(--muted)}
   .toggle button.on{background:rgba(255,255,255,.13);color:var(--ink)}
   .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .radios{display:flex;flex-direction:column;gap:6px;margin-top:6px}.chk.radio{margin:0}
   .chip{border:1px solid var(--line2);background:rgba(255,255,255,.05);color:var(--ink);border-radius:99px;padding:7px 12px;font:inherit;font-size:13.5px;display:inline-flex;align-items:center;gap:6px}
   .chip svg.i{width:16px;height:16px}
   .chip.on{background:var(--act-soft);color:var(--act-ink);border-color:rgba(43,189,195,.45);font-weight:700}
@@ -1569,7 +1570,7 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '15.0';
+var VERSION_APP = '19.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -1728,6 +1729,12 @@ function opcionesComuna(region, actual){
   if (!region && !actual) return '<option value="">Primero elige la región</option>';
   return '<option value="">Elige la comuna</option>'+L.map(function(c){ return '<option'+(c===actual?' selected':'')+'>'+esc(c)+'</option>'; }).join('');
 }
+/** Opciones con explicación (una sola elegible). opciones: [[valor, título, explicación]]. */
+function opcionesRadio(nombre, opciones, valor){
+  return '<div class="radios">'+opciones.map(function(o){
+    return '<label class="chk radio"><input type="radio" name="'+nombre+'" value="'+esc(o[0])+'"'+(o[0]===valor?' checked':'')+'><span><b>'+esc(o[1])+'</b>'+(o[2]?'<br><span class="muted">'+esc(o[2])+'</span>':'')+'</span></label>'; }).join('')+'</div>';
+}
+function valorRadio(nombre){ var r = document.querySelector('input[name="'+nombre+'"]:checked'); return r ? r.value : ''; }
 var TIPOS_EMPRESA = ['Empresa principal','Contratista','Subcontratista'];
 var JORNADAS = ['Diurna','Nocturna','Mixta (diurna y nocturna)'];
 var TURNOS = ['Sin turnos','Turno fijo','Turnos rotativos'];
@@ -1748,6 +1755,13 @@ function abrirCentro(nombre, seccion){
   var abierta = seccion || (c ? '' : 'empresa');
   var h = cabecera(c ? 'Ficha de la instalación' : 'Nueva instalación')+
     '<p class="muted" style="margin-top:0">'+(c?'Estos datos aparecen en la hoja "Datos del centro" del Excel y se usan para revisar el cumplimiento.':'Solo la razón social y el nombre de la instalación son obligatorios. El resto lo puedes completar después.')+'</p>';
+  var esContr = f.tipoEmpresa && f.tipoEmpresa!=='Empresa principal';
+  h += '<div class="card" style="padding:12px 14px;margin:6px 0 12px"><b>En esta instalación, la empresa es:</b>'+
+    opcionesRadio('fTipoEmp', [['Empresa principal','Empresa principal (mandante)','Es dueña de la obra o del servicio que se realiza en la instalación.'],
+      ['Contratista','Contratista','Presta servicios en la instalación de una empresa principal (Ley 20.123).'],
+      ['Subcontratista','Subcontratista','Presta servicios a una contratista, en la instalación de una empresa principal.']], f.tipoEmpresa)+
+    '<div id="fMandanteBox"'+(esContr?'':' class="hidden"')+'>'+fCampo('fMandante', 'Empresa principal (mandante)', f.mandante, 'Razón social de la empresa principal para la que se prestan los servicios.')+
+      '<p class="muted" style="margin:6px 0 0">En la sección Instalación, registra la instalación de la empresa principal donde se prestan los servicios. La IA considera los riesgos por trabajar junto a otras empresas.</p></div></div>';
   h += fSec('Empresa',
     lab('Razón social', 'Nombre legal de la entidad empleadora, tal como figura en el SII. Todas sus instalaciones quedan agrupadas bajo este nombre.')+
       '<input type="text" id="cRs" list="dlRs" value="'+esc(x.razonSocial)+'" autocomplete="off"><datalist id="dlRs">'+rsList.map(function(r){return '<option value="'+esc(r)+'">';}).join('')+'</datalist>'+
@@ -1757,17 +1771,23 @@ function abrirCentro(nombre, seccion){
     fCampo('fRep', 'Representante legal', f.representanteLegal, 'Nombre completo de quien representa legalmente a la empresa.')+
     fCampo('fRutRep', 'RUT del representante legal', f.rutRepresentante, '')+
     fSel('fOrg', 'Organismo administrador', f.organismo, ORGANISMOS, 'Mutualidad o instituto al que la empresa está adherida para el seguro de la Ley 16.744. Es quien asesora y recibe las denuncias de accidentes.')+
-    fSel('fTipoEmp', 'Tipo de empresa en esta instalación', f.tipoEmpresa, TIPOS_EMPRESA, 'Empresa principal (mandante): dueña de la obra, faena o servicio. Contratista o subcontratista: trabaja en instalaciones de una empresa principal (Ley 20.123). La IA considera los riesgos por interacción con otras empresas.')+
-    '<div id="fMandanteBox"'+(f.tipoEmpresa && f.tipoEmpresa!=='Empresa principal'?'':' class="hidden"')+'>'+fCampo('fMandante', 'Empresa principal (mandante)', f.mandante, 'Razón social de la empresa para la que se prestan los servicios.')+'</div>',
-    n([x.razonSocial,x.rutEmpresa,f.giro,f.codigoActividad,f.representanteLegal,f.rutRepresentante,f.organismo,f.tipoEmpresa]), 8, abierta==='empresa', 'empresa');
+    lab('Reglamento interno de la empresa', 'Se usa en el registro de entrega del reglamento a cada persona trabajadora.')+
+    opcionesRadio('fRegl', [['RIOHS','Reglamento Interno de Orden, Higiene y Seguridad (RIOHS)','Obligatorio en empresas con 10 o más personas trabajadoras (art. 153 del Código del Trabajo).'],
+      ['RIHS','Reglamento Interno de Higiene y Seguridad (RIHS)','Para empresas con menos de 10 personas trabajadoras (art. 67 de la Ley 16.744 y D.S. N° 44).']], f.reglamento),
+    n([x.razonSocial,x.rutEmpresa,f.giro,f.codigoActividad,f.representanteLegal,f.rutRepresentante,f.organismo,f.reglamento]), 8, abierta==='empresa', 'empresa');
   h += fSec('Instalación',
-    fCampo('cNom', 'Nombre de la instalación', x.nombre, 'Cómo identificas esta instalación dentro de la empresa. Debe ser distinto de tus otras instalaciones.')+
+    '<p class="muted'+(esContr?'':' hidden')+'" id="fInstNota" style="margin:12px 0 0">Instalación de la empresa principal donde se prestan los servicios.</p>'+
+    fCampo('cNom', 'Nombre de la instalación', x.nombre, 'Cómo identificas esta instalación. Debe ser distinto de tus otras instalaciones.')+
     fSel('fRegion', 'Región', f.region, REGIONES, 'Al elegir la región se muestran sus comunas.')+
     lab('Comuna')+'<select id="fComuna">'+opcionesComuna(f.region, f.comuna)+'</select>'+
     fCampo('cDir', 'Dirección', x.direccion, 'Calle y número de la instalación.')+
-    fSel('fJorTipo', 'Horario de trabajo', f.jornadaTipo, JORNADAS, 'Diurna: se trabaja de día. Nocturna: se trabaja de noche (entre las 21:00 y las 07:00). Mixta: hay trabajo de día y de noche. Influye en los riesgos de fatiga y psicosociales.')+
-    fSel('fTurnos', 'Turnos', f.turnos, TURNOS, 'Turno fijo: cada persona trabaja siempre en el mismo horario. Turnos rotativos: las personas van cambiando de horario (por ejemplo, semana de día y semana de noche).')+
-    fCampo('fJornada', 'Detalle del horario (opcional)', f.jornada, 'Por ejemplo: lunes a viernes de 08:00 a 17:30, o sistema 4x4 de 12 horas.')+
+    lab('¿En qué horario se trabaja en esta instalación?', 'Influye en los riesgos de fatiga y psicosociales que considera la IA.')+
+    opcionesRadio('fJorTipo', [['Diurna','Jornada diurna','Se trabaja solo de día.'],['Nocturna','Jornada nocturna','Se trabaja solo de noche.'],
+      ['Mixta (diurna y nocturna)','Jornada mixta','Se trabaja de día y de noche.']], f.jornadaTipo)+
+    lab('¿Se trabaja por turnos?')+
+    opcionesRadio('fTurnos', [['Sin turnos','No','Todas las personas trabajan en el mismo horario.'],['Turno fijo','Sí, turno fijo','Cada persona trabaja siempre en el mismo horario (por ejemplo, siempre de noche).'],
+      ['Turnos rotativos','Sí, turnos rotativos','Las personas cambian de horario (por ejemplo, una semana de día y otra de noche).']], f.turnos)+
+    fCampo('fJornada', 'Horario o sistema de turnos (opcional)', f.jornada, 'Por ejemplo: lunes a viernes de 08:00 a 17:30, o sistema 4x4 de 12 horas.', ' placeholder="Ej: lunes a viernes, 08:00 a 17:30"')+
     lab('Fecha de la visita o levantamiento', 'Día en que recorriste la instalación para hacer la evaluación. Aparece en la ficha del Excel.')+'<input type="date" id="fVisita" value="'+esc(f.fechaVisita||'')+'">',
     n([x.nombre,x.direccion,f.comuna,f.region,f.jornadaTipo,f.turnos,f.fechaVisita]), 7, abierta==='centro', 'centro');
   h += fSec('Personas trabajadoras',
@@ -1777,14 +1797,10 @@ function abrirCentro(nombre, seccion){
     '<div>'+lab('Otras', 'Personas que no se identifican como hombre ni mujer. Déjalo vacío si no aplica.')+'<input type="number" min="0" inputmode="numeric" id="fO" value="'+esc(f.nOtros||'')+'"></div></div>',
     (f.nHombres||f.nMujeres||f.nOtros)?1:0, 1, abierta==='personas', 'personas');
   var sn = ['Sí','No','No aplica'];
-  var yo = SRV.usuario || {}, otroExp = !!(f.asesorNombre && f.asesorNombre !== yo.nombre);
+  var yo = SRV.usuario || {};
   h += fSec('Evaluación psicosocial (CEAL-SM)',
     '<div class="note" style="margin-bottom:10px">Experto/a en prevención: <b>'+esc(yo.nombre||'')+'</b>'+(yo.registro?', Registro SEREMI '+esc(yo.registro):'')+
-      '.<br><span class="muted">Se toma de Mi cuenta para la matriz y los documentos. No necesitas escribirlo aquí.</span></div>'+
-    '<label class="chk"><input type="checkbox" id="fOtroExp"'+(otroExp?' checked':'')+'><span>Esta instalación la asesora otra persona</span></label>'+
-    '<div id="fOtroBox"'+(otroExp?'':' class="hidden"')+'>'+
-    fCampo('fAsesor', 'Nombre del experto/a que asesora', otroExp?f.asesorNombre:'', '')+
-    fCampo('fRegistro', 'Su N° de registro SEREMI', otroExp?f.asesorRegistro:'', 'Letras, barra, número y -P. Por ejemplo: AB/ 1234-P.', ' placeholder="Ej: AB/ 1234-P" autocapitalize="characters" autocomplete="off" data-registro')+'</div>'+
+      '.<br><span class="muted">Se toma de Mi cuenta para la matriz y los documentos.</span></div>'+
     lab('Resultado CEAL-SM', 'Resultado del cuestionario de riesgos psicosociales (SUSESO) para esta instalación. Con él se valoran los riesgos psicosociales de la matriz.')+
       '<select id="cCeal">'+CEAL_OPC.map(function(o){return '<option'+(o===(x.ceal||'Sin evaluar')?' selected':'')+'>'+o+'</option>';}).join('')+'</select>',
     n([(x.ceal&&x.ceal!=='Sin evaluar')?'x':'']), 1, abierta==='org', 'org');
@@ -1822,9 +1838,9 @@ function abrirCentro(nombre, seccion){
     procesarFoto(file, 360, true).then(function(img){ logoNuevo = {mime:img.mime, data:img.data};
       $('cLogoPrev').innerHTML = '<img src="data:'+img.mime+';base64,'+img.data+'" alt="" style="max-height:60px;max-width:180px"> <span class="muted">Se guardará al tocar '+(c?'Guardar ficha':'Registrar instalación')+'</span>'; });
   };
-  $('fOtroExp').onchange = function(){ $('fOtroBox').classList.toggle('hidden', !this.checked); };
   $('fRegion').onchange = function(){ $('fComuna').innerHTML = opcionesComuna(this.value, ''); };
-  $('fTipoEmp').onchange = function(){ $('fMandanteBox').classList.toggle('hidden', !this.value || this.value==='Empresa principal'); };
+  document.querySelectorAll('input[name="fTipoEmp"]').forEach(function(r){ r.onchange = function(){ var ct = valorRadio('fTipoEmp') && valorRadio('fTipoEmp')!=='Empresa principal';
+    $('fMandanteBox').classList.toggle('hidden', !ct); $('fInstNota').classList.toggle('hidden', !ct); }; });
   if ($('cDel')) $('cDel').onclick = function(){ confirmarEliminarCentro(c); };
   if ($('cLogoQuitar')) $('cLogoQuitar').onclick = function(){ logoNuevo = null; $('cLogoPrev').innerHTML = '<span class="muted">El logo se quitará al guardar.</span>'; };
   $('cOk').onclick = function(){
@@ -1832,11 +1848,10 @@ function abrirCentro(nombre, seccion){
     var d = {id:c?c.id:null, razonSocial:v('cRs'), rutEmpresa:v('cRut'), nombre:v('cNom'), direccion:v('cDir'), ceal:$('cCeal').value,
       respEjecNombre:v('cEjN'), respEjecCargo:v('cEjC'), respSegNombre:v('cSgN'), respSegCargo:v('cSgC'),
       ficha:{giro:v('fGiro'), codigoActividad:v('fCodAct'), representanteLegal:v('fRep'), rutRepresentante:v('fRutRep'), organismo:$('fOrg').value,
-        comuna:v('fComuna'), region:$('fRegion').value, jornada:v('fJornada'), jornadaTipo:$('fJorTipo').value, turnos:$('fTurnos').value, fechaVisita:$('fVisita').value,
-        tipoEmpresa:$('fTipoEmp').value, mandante:($('fTipoEmp').value && $('fTipoEmp').value!=='Empresa principal') ? v('fMandante') : '',
+        comuna:v('fComuna'), region:$('fRegion').value, jornada:v('fJornada'), jornadaTipo:valorRadio('fJorTipo'), turnos:valorRadio('fTurnos'), reglamento:valorRadio('fRegl'), fechaVisita:$('fVisita').value,
+        tipoEmpresa:valorRadio('fTipoEmp'), mandante:(valorRadio('fTipoEmp') && valorRadio('fTipoEmp')!=='Empresa principal') ? v('fMandante') : '',
         nHombres:v('fH'), nMujeres:v('fM'), nOtros:v('fO'),
-        asesorNombre:$('fOtroExp').checked?v('fAsesor'):'', asesorRegistro:$('fOtroExp').checked?formatoRegistro(v('fRegistro')):''}};
-    if ($('fOtroExp').checked && v('fRegistro') && !d.ficha.asesorRegistro){ var sx = document.querySelector('[data-sec="org"]'); if (sx) sx.open = true; $('fRegistro').focus(); return toast(MSG_REGISTRO, 6000); }
+        asesorNombre:'', asesorRegistro:''}};
     if (logoNuevo!==undefined) d.logo = logoNuevo;
     d.responsables = resp;
     var abrirSec = function(k){ var s0 = document.querySelector('[data-sec="'+k+'"]'); if (s0){ s0.open = true; s0.scrollIntoView({block:'start'}); } };
@@ -1857,7 +1872,7 @@ function abrirCentro(nombre, seccion){
    Los textos se guardan en el teléfono (localStorage) y las fotos en IndexedDB. */
 function nuevoPuesto(){ return {bid:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), proceso:'',puesto:'',lugar:'',hombres:'',mujeres:'',otros:'',
   sensibles:{}, fotos:[], relato:'', tareas:[], idx:0, exp:-1, enCola:false, paso:1, actualizado:Date.now(), demo:enDemo()}; }
-function nuevaTareaItem(medidas){ return {id:null, tarea:'', rutinaria:true, medidasTexto:medidas||'', epp:[], riesgos:[], medidasActuales:[], observacionesFoto:'', analizado:false, guardada:false, aceptada:false}; }
+function nuevaTareaItem(medidas){ return {id:null, tarea:'', rutinaria:true, medidasTexto:medidas||'', epp:[], herramientas:[], accesorios:[], quimicos:[], riesgos:[], medidasActuales:[], observacionesFoto:'', analizado:false, guardada:false, aceptada:false}; }
 function tk(){ return cur.tareas[cur.idx] || cur.tareas[0]; }
 
 function cargarBorradores(){
@@ -2326,7 +2341,7 @@ function renderNueva(){
         lab('Tipo', 'Rutinaria: se hace de forma habitual. No rutinaria: ocasional, como mantenciones, limpiezas profundas o emergencias.')+'<div class="toggle"><button data-rut="1" data-k="'+k+'" class="'+(t.rutinaria?'on':'')+'">Rutinaria</button><button data-rut="0" data-k="'+k+'" class="'+(!t.rutinaria?'on':'')+'">No rutinaria</button></div>'+
         '<label class="lbl"><span>Medidas preventivas actuales'+ayuda('Lo que ya existe hoy para controlar los riesgos de esta tarea: capacitación, procedimientos, elementos de protección personal, señalización, protecciones en máquinas. Déjalo vacío si no hay nada.')+'</span>'+micBtn('t:'+k+':medidasTexto')+'</label>'+
         '<textarea data-p="t:'+k+':medidasTexto" style="min-height:70px" placeholder="Escribe o dicta lo que existe hoy">'+esc(t.medidasTexto)+'</textarea>'+
-        chipsEpp(t,k)+'<details style="margin-top:10px"><summary class="muted">Agregar medidas frecuentes</summary><div class="chips" style="margin-top:8px">'+MEDIDAS_RAPIDAS.map(function(m){return '<button class="chip" style="padding:5px 10px;font-size:12px" data-med="'+esc(m)+'" data-k="'+k+'">+ '+m+'</button>';}).join('')+'</div></details>'+
+        chipsEpp(t,k)+elementosTarea(t,k)+'<details style="margin-top:10px"><summary class="muted">Agregar medidas frecuentes</summary><div class="chips" style="margin-top:8px">'+MEDIDAS_RAPIDAS.map(function(m){return '<button class="chip" style="padding:5px 10px;font-size:12px" data-med="'+esc(m)+'" data-k="'+k+'">+ '+m+'</button>';}).join('')+'</div></details>'+
       '</div>';
     }).join('');
     h += '<div class="row"><button class="btn sec" id="btnAddTarea">'+ico('mas')+'Agregar tarea</button><button class="btn sec" id="btnBiblio">'+ico('libro')+'Tareas tipo</button></div>';
@@ -2612,7 +2627,7 @@ function analizarCore(ev, base){
       hombres:ev.hombres, mujeres:ev.mujeres, otros:ev.otros, sensibles:ev.sensibles, medidasTexto:t.medidasTexto, ceal:cealCentro(ev.centro),
       variasTareas:varias, epp:t.epp||[], fotos:ev.fotos.map(function(f){return {mime:f.mime,data:f.data};})};
     return run('analizarTarea', payload).then(function(res){
-      t.riesgos = res.riesgos; t.observacionesFoto = res.observacionesFoto; t.medidasActuales = res.medidasActuales;
+      t.riesgos = res.riesgos; t.observacionesFoto = res.observacionesFoto; t.medidasActuales = res.medidasActuales; t.quimicosAnalisis = res.quimicos || [];
       t.analizado = true; t.cambiada = false; t.guardada = false; t.aceptada = false; hechas++;
       ritmo();
       if (ev===cur) guardarBorrador();
@@ -2681,7 +2696,8 @@ function guardarTodas(){
       busy(true,'Guardando tarea '+(n+1)+' de '+lista.length+'…'); progPintar(n/lista.length*100);
       var copia = {id:t.id, proceso:cur.proceso, puesto:cur.puesto, tarea:t.tarea, lugar:cur.lugar, rutinaria:t.rutinaria,
         hombres:cur.hombres, mujeres:cur.mujeres, otros:cur.otros, sensibles:cur.sensibles, medidasTexto:t.medidasTexto,
-        medidasActuales:t.medidasActuales, observacionesFoto:t.observacionesFoto, riesgos:t.riesgos, ceal:cealCentro(cur.centro), epp:t.epp||[]};
+        medidasActuales:t.medidasActuales, observacionesFoto:t.observacionesFoto, riesgos:t.riesgos, ceal:cealCentro(cur.centro), epp:t.epp||[],
+        herramientas:t.herramientas||[], accesorios:t.accesorios||[], quimicos:t.quimicos||[], quimicosAnalisis:t.quimicosAnalisis||[]};
       var ci = centroInfo(cur.centro);
       return run('guardarTarea', JSON.parse(JSON.stringify(copia)), {empresa:ci?ci.razonSocial:cfg.empresa, centro:cur.centro, respEjec:cfg.respEjec}).then(function(r){
         t.id = r.id; t.guardada = true; n++; riesgos += r.riesgos; medidas += r.medidas; guardarBorrador();
@@ -2720,7 +2736,7 @@ function reevaluar(id){
     busy(false);
     var ev = Object.assign(nuevoPuesto(), {centro:cfg.centro, proceso:d.proceso, puesto:d.puesto, lugar:d.lugar||'', hombres:d.hombres, mujeres:d.mujeres, otros:d.otros, sensibles:d.sensibles||{}, reevaluando:true});
     var t = nuevaTareaItem(d.medidasTexto||'');
-    Object.assign(t, {id:d.id, tarea:d.tarea, epp:d.epp||[], rutinaria:d.rutinaria!==false, riesgos:d.riesgos||[], medidasActuales:d.medidasActuales||[], observacionesFoto:d.observacionesFoto||'', analizado:true, cambiada:true});
+    Object.assign(t, {id:d.id, tarea:d.tarea, epp:d.epp||[], herramientas:d.herramientas||[], accesorios:d.accesorios||[], quimicos:d.quimicos||[], quimicosAnalisis:d.quimicosAnalisis||[], rutinaria:d.rutinaria!==false, riesgos:d.riesgos||[], medidasActuales:d.medidasActuales||[], observacionesFoto:d.observacionesFoto||'', analizado:true, cambiada:true});
     t.riesgos.forEach(function(r){ r.confirmado = true; });
     ev.tareas = [t]; cur = ev; paso = 2; tab = 'evaluar'; guardarBorrador(); render();
     toast(d.eventos && d.eventos.length ? 'Revisa las medidas y vuelve a analizar: la IA considerará el '+d.eventos[d.eventos.length-1].tipo.toLowerCase()+' registrado.' : 'Revisa los datos y vuelve a analizar, o ve directo a Resultados.', 6000);
@@ -3181,7 +3197,7 @@ var MODULOS_TODOS = [['irl','Información de los riesgos laborales (IRL)','Art. 
   ['ri','Entrega del reglamento interno','RIOHS o RIHS según la dotación. Firma la persona trabajadora.'],
   ['cap','Difusión y capacitación de PTS','Un registro de 1 hora por procedimiento. Firman la persona y quien relata.'],
   ['epp','Entrega de EPP','Con marca, modelo y certificación. Firma la persona trabajadora.']];
-var MOTIVOS_IRL = [['ingreso','Antes del inicio de las labores'],['proceso','Incorporación a un nuevo proceso o puesto'],['cambio','Cambio de tecnologías, materiales o sustancias'],['matriz','Actualización de la matriz de riesgos']];
+var MOTIVOS_IRL = [['ingreso','Antes del inicio de las labores'],['proceso','Incorporación a un nuevo proceso o puesto'],['cambio','Cambio de tecnologías, materiales o sustancias'],['matriz','Actualización de la matriz de riesgos'],['irl','Actualización de la IRL']];
 function modulosVisibles(){ return MODULOS_TODOS; }
 function estadoDocs(x){
   var e = x.estado || {}, cap = e.cap ? Object.keys(e.cap).length : 0;
@@ -3227,25 +3243,26 @@ function editarFicha(puesto, f){
   var cons = {}; (f.riesgos||[]).forEach(function(r){ cons[String(r.riesgo).toLowerCase()] = r.consecuencia; });
   var riesgosTxt = (f.riesgosMatriz && f.riesgosMatriz.length ? f.riesgosMatriz : (f.riesgos||[]).map(function(r){ return r.riesgo; }))
     .map(function(r){ return r+' — '+(cons[String(r).toLowerCase()]||''); }).join('\n');
-  var sus = (f.sustancias||[]).map(function(s){ return typeof s==='string' ? s : [s.producto,s.peligros,s.almacenamiento,s.epp,s.primerosAuxilios].join(' | '); }).join('\n');
+  var sus = (f.sustancias||[]).map(function(s){ return typeof s==='string' ? s : [s.producto, s.riesgos||s.peligros||'', s.consecuencias||'', s.medidas||[s.almacenamiento,s.epp,s.primerosAuxilios].filter(Boolean).join('. ')].join(' | '); }).join('\n');
   var h = cabecera('Ficha: '+esc(puesto))+'<p class="muted" style="margin-top:0">'+(f.guardada?'Ficha guardada. Revisa y ajusta lo que necesites.':'Redactada por la IA desde la matriz. Revísala, corrige y guarda: se usa en los documentos de cada persona del puesto.')+
     ' Los riesgos, su nivel y sus medidas se toman siempre de la matriz vigente.</p>'+
-    sec('1. Lugar de trabajo', ta('fEsp','Espacio de trabajo',T(f.espacio),'',3)+ta('fAmb','Condiciones ambientales',T(f.ambientales),'Iluminación, ventilación, temperatura, ruido.',3)+
+    sec('1. Descripción y lugar de trabajo', ta('fDesc','Descripción general del trabajo',T(f.descripcion),'Texto breve que va en la IRL antes del listado de tareas. Las tareas se toman de la matriz.',3)+
+      ta('fEsp','Espacio de trabajo',T(f.espacio),'',3)+ta('fAmb','Condiciones ambientales',T(f.ambientales),'Iluminación, ventilación, temperatura, ruido.',3)+
       ta('fOrd','Orden y aseo',T(f.ordenAseo),'',3)+ta('fMaq','Máquinas, equipos y herramientas',L([].concat(f.maquinaria||[], f.herramientas||[])),'Uno por línea.'), !f.guardada)+
-    sec('2. Consecuencias de cada riesgo', ta('fRie','Riesgo — posibles consecuencias',riesgosTxt,'Una línea por riesgo de la matriz: el riesgo, un guion largo y sus posibles consecuencias.',6))+
-    sec('3. Emergencias, catástrofes y desastres', ta('fEme','Situación: medidas y conducta a seguir',(f.emergencias||[]).map(function(x){ return x.tipo+': '+x.detalle; }).join('\n'),'Una línea por situación. Si faltan sismo, incendio o accidente del trabajo, se agregan con un texto base.',5))+
-    sec('4. Productos y sustancias', ta('fSus','Producto | peligros | almacenamiento | EPP | primeros auxilios',sus,'Una línea por producto, con sus datos separados por |, según la hoja de datos de seguridad. Déjalo vacío si no manipula sustancias peligrosas.',4))+
-    sec('5. PTS y EPP', ta('fPts','Procedimientos de trabajo seguro',L(f.pts),'Uno por línea, con su código al inicio. Por ejemplo: PTS-01 Uso de escalera de tijera. Cada uno tendrá su registro de difusión y capacitación de 1 hora.',5)+
+    '<textarea id="fRie" class="hidden">'+esc(riesgosTxt)+'</textarea>'+
+    sec('2. Emergencias, catástrofes y desastres', ta('fEme','Situación: medidas y conducta a seguir',(f.emergencias||[]).map(function(x){ return x.tipo+': '+x.detalle; }).join('\n'),'Una línea por situación. Si faltan sismo, incendio o accidente del trabajo, se agregan con un texto base.',5))+
+    sec('3. Productos y sustancias peligrosas', ta('fSus','Producto | riesgos | consecuencias | medidas preventivas',sus,'Una línea por producto, con sus datos separados por |, según la hoja de datos de seguridad (incluye almacenamiento, EPP y primeros auxilios en las medidas). Los productos declarados en las tareas se agregan solos a la IRL con el análisis de la IA.',4))+
+    sec('4. PTS y EPP', ta('fPts','Procedimientos de trabajo seguro',L(f.pts),'Uno por línea, con su código al inicio. Por ejemplo: PTS-01 Uso de escalera de tijera. Cada uno tendrá su registro de difusión y capacitación de 1 hora.',5)+
       ta('fEpp','Elementos de protección personal',L(f.epp),'Uno por línea. Se usan en la IRL y en la entrega de EPP.',4))+
     '<button class="btn" id="fiOk">Guardar ficha</button><button class="btn ghost" style="width:100%;margin-top:6px" id="fiIa">'+ico('ia')+'Volver a redactar con IA</button>';
   abrirSheet(h);
   $('fiIa').onclick = function(){ cerrarSheet(); abrirFichaPuesto(puesto, true); };
   $('fiOk').onclick = function(){
     var v = function(id){ return $(id).value; };
-    var ficha = {espacio:v('fEsp').trim(), ambientales:v('fAmb').trim(), ordenAseo:v('fOrd').trim(), maquinaria:lineas(v('fMaq')),
+    var ficha = {descripcion:v('fDesc').trim(), espacio:v('fEsp').trim(), ambientales:v('fAmb').trim(), ordenAseo:v('fOrd').trim(), maquinaria:lineas(v('fMaq')),
       riesgos:pares(v('fRie'),'riesgo','consecuencia'),
       emergencias:pares(v('fEme'),'tipo','detalle').map(function(x){ return x.detalle ? x : {tipo:'Otra', detalle:x.tipo}; }),
-      sustancias:lineas(v('fSus')).map(function(l){ var k = l.split('|').map(function(z){ return z.trim(); }); return {producto:k[0], peligros:k[1]||'', almacenamiento:k[2]||'', epp:k[3]||'', primerosAuxilios:k[4]||''}; }),
+      sustancias:lineas(v('fSus')).map(function(l){ var k = l.split('|').map(function(z){ return z.trim(); }); return {producto:k[0], riesgos:k[1]||'', consecuencias:k[2]||'', medidas:k.slice(3).filter(String).join('. ')}; }),
       pts:lineasPts(v('fPts')), ptsDetalle:f.ptsDetalle||[], epp:lineas(v('fEpp'))};
     busy(true,'Guardando la ficha…');
     run('guardarFichaPuesto', cfg.centro, puesto, ficha).then(function(){ busy(false); cerrarSheet(); cargar('personal'); toast('Ficha del puesto guardada.'); }).catch(function(e){ busy(false); toast(e.message); });
@@ -3349,7 +3366,7 @@ function abrirDocumentos(ids){
       abrirSheet('<div style="text-align:center;padding:6px 4px"><div class="okbig">'+ico('ok')+'</div><h2>Documentos listos</h2><p class="muted">Imprime los PDF para firmarlos a mano'+(extra.enviar?'. También los enviamos a tu correo':'')+'.</p></div>'+
         (errores.length?'<div class="note warn">'+errores.map(esc).join('<br>')+'</div>':'')+
         hechos.map(function(x){ return '<div class="sec-t">'+esc(x.nombre)+'</div><div class="list">'+x.archivos.map(function(a){
-          return '<div class="li"><span class="tx"><b>'+esc(a.titulo)+'</b>'+(a.errorWord?'<span class="muted">'+esc(a.errorWord)+'</span>':'')+'</span>'+
+          return '<div class="li"><span class="tx"><b>'+esc(a.titulo)+'</b>'+(a.errorWord||a.aviso?'<span class="muted">'+esc(a.errorWord||a.aviso)+'</span>':'')+'</span>'+
             '<a class="chip" href="'+esc(a.pdf)+'" target="_blank" rel="noopener">PDF</a>'+(a.word?'<a class="chip" href="'+esc(a.word)+'" target="_blank" rel="noopener">Word</a>':'')+'</div>'; }).join('')+'</div>'; }).join('')+
         '<button class="btn" onclick="cerrarSheet()">Listo</button>');
     });
@@ -3373,6 +3390,39 @@ function eppUnicos(l){ var v = {}; return (l||[]).filter(function(e){ var k = ep
 var EPP_FRECUENTES = ['Zapatos de seguridad','Casco de seguridad','Guantes de cabritilla','Guantes multiflex','Guantes de nitrilo','Lentes de seguridad','Antiparras','Protector auditivo',
   'Mascarilla o respirador','Chaleco reflectante','Arnés de seguridad','Ropa de trabajo','Protector solar','Legionario o cubrenuca','Careta facial','Ropa impermeable'];
 function eppDelPuesto(excepto){ var l = []; cur.tareas.forEach(function(t){ if (t===excepto) return; (t.epp||[]).forEach(function(e){ l.push(e); }); }); return eppUnicos(l); }
+/* ---- Herramientas, accesorios y productos químicos de la tarea (sirven para el análisis y la IRL) ---- */
+var ELEMENTOS = {
+  herramientas: ['Herramientas y equipos', 'Herramienta o equipo', 'Ej: esmeril angular, transpaleta manual', 'Para qué se usa (ej: corte de perfiles metálicos)'],
+  accesorios: ['Accesorios', 'Accesorio', 'Ej: escalera de tijera, eslinga, extensión eléctrica', 'Para qué se usa (ej: acceso a estanterías altas)'],
+  quimicos: ['Productos químicos', 'Producto químico', 'Ej: desengrasante, cloro, diluyente', 'Uso y forma (ej: limpieza de piezas con paño)']
+};
+function elementosTarea(t, k){
+  var n = (t.herramientas||[]).length + (t.accesorios||[]).length + (t.quimicos||[]).length;
+  return '<details class="elem"'+(n?' open':'')+' style="margin-top:12px"><summary><b>Herramientas, accesorios y productos químicos</b>'+(n?' <span class="muted">('+n+')</span>':'')+'</summary>'+
+    '<p class="muted" style="margin:6px 0 4px;font-size:13px">Lo que usa o manipula la persona en esta tarea, con una descripción simple. La IA lo considera en el análisis; los productos químicos salen en la IRL con sus riesgos, consecuencias y medidas.</p>'+
+    Object.keys(ELEMENTOS).map(function(tipo){
+      var L = t[tipo] || [];
+      return '<div style="margin-top:8px"><div class="muted" style="font-size:13px;font-weight:700">'+ELEMENTOS[tipo][0]+'</div>'+
+        (L.length ? '<div class="list" style="margin:4px 0">'+L.map(function(x,i){ return '<div class="li" style="padding:8px 10px"><span class="tx"><b>'+esc(x.n)+'</b>'+(x.d?'<span>'+esc(x.d)+'</span>':'')+'</span>'+
+          '<button class="x" type="button" data-qel="'+k+':'+tipo+':'+i+'" aria-label="Quitar">×</button></div>'; }).join('')+'</div>' : '')+
+        '<button class="chip" type="button" style="margin-top:4px" data-addel="'+k+':'+tipo+'">'+ico('mas')+ELEMENTOS[tipo][1]+'</button></div>';
+    }).join('')+'</details>';
+}
+function elementosDelPuesto(tipo, excepto){ var l = [], v = {}; cur.tareas.forEach(function(t){ if (t===excepto) return; (t[tipo]||[]).forEach(function(x){ var key = x.n.toLowerCase(); if (!v[key]){ v[key]=1; l.push(x); } }); }); return l; }
+function agregarElemento(k, tipo){
+  var t = cur.tareas[k], E = ELEMENTOS[tipo], ya = (t[tipo]||[]).map(function(x){ return x.n.toLowerCase(); });
+  var otros = elementosDelPuesto(tipo, t).filter(function(x){ return ya.indexOf(x.n.toLowerCase())<0; });
+  abrirSheet(cabecera(E[1]+' — Tarea '+(k+1))+
+    (otros.length ? lab('Usados en otras tareas del puesto')+'<div class="chips">'+otros.map(function(x,i){ return '<button type="button" class="chip" data-elot="'+i+'">'+ico('mas')+esc(x.n)+'</button>'; }).join('')+'</div>' : '')+
+    lab('Nombre')+'<input type="text" id="elN" autocomplete="off" placeholder="'+esc(E[2])+'">'+
+    lab('Descripción simple (opcional)')+'<input type="text" id="elD" autocomplete="off" placeholder="'+esc(E[3])+'">'+
+    '<div style="height:12px"></div><button class="btn" id="elOk">Agregar</button>');
+  var fin = function(x){ t[tipo] = (t[tipo]||[]).concat([x]); if (t.analizado) t.cambiada = true; guardarBorrador(); cerrarSheet(); render(true); };
+  document.querySelectorAll('[data-elot]').forEach(function(b){ b.onclick = function(){ fin(otros[+b.dataset.elot]); }; });
+  $('elOk').onclick = function(){ var n = $('elN').value.trim(), d = $('elD').value.trim(); if (!n) return toast('Escribe el nombre.');
+    if (ya.indexOf(n.toLowerCase())>=0) return toast('Ya está en la lista.'); fin({n:n, d:d}); };
+  setTimeout(function(){ try{ $('elN').focus(); }catch(e){} }, 300);
+}
 function chipsEpp(t, k){
   return '<label class="lbl"><span>EPP que usa en esta tarea'+ayuda('Elementos de protección personal que la persona usa hoy en esta tarea. Se usan en el análisis y en el registro de entrega de EPP.')+'</span></label>'+
     '<div class="chips">'+(t.epp||[]).map(function(e,i){ return '<span class="chip on">'+esc(e)+'<button type="button" class="x" style="font-size:16px;padding:0 0 0 4px" data-qepp="'+k+':'+i+'" aria-label="Quitar">×</button></span>'; }).join('')+
@@ -3456,7 +3506,7 @@ function runJob(id, fn){
 function payloadPuesto(ev, lista){
   return {centro:ev.centro, proceso:ev.proceso, puesto:ev.puesto, lugar:ev.lugar, hombres:ev.hombres, mujeres:ev.mujeres, otros:ev.otros, sensibles:ev.sensibles,
     ceal:cealCentro(ev.centro), sugerir:!ev.sugeridasVistas, corregir:true, fotos:ev.fotos.map(function(f){ return {mime:f.mime, data:f.data}; }),
-    tareas:lista.map(function(t){ return {id:t.id, tarea:t.tarea, rutinaria:t.rutinaria, medidasTexto:t.medidasTexto, epp:t.epp||[]}; })};
+    tareas:lista.map(function(t){ return {id:t.id, tarea:t.tarea, rutinaria:t.rutinaria, medidasTexto:t.medidasTexto, epp:t.epp||[], herramientas:t.herramientas||[], accesorios:t.accesorios||[], quimicos:t.quimicos||[]}; })};
 }
 /**
  * Corrección de redacción + análisis de todas las tareas en el servidor, en una sola solicitud.
@@ -3478,7 +3528,7 @@ function analizarEnServidor(ev, reanudar){
       var x = r.tareas[i] || {};
       if (x.corregida){ t.original = t.tarea; t.tarea = x.corregida; t.corregida = true; t.verOrig = false; }
       if (x.error){ fallas++; return; }
-      t.riesgos = x.riesgos; t.observacionesFoto = x.observacionesFoto; t.medidasActuales = x.medidasActuales;
+      t.riesgos = x.riesgos; t.observacionesFoto = x.observacionesFoto; t.medidasActuales = x.medidasActuales; t.quimicosAnalisis = x.quimicos || [];
       t.analizado = true; t.cambiada = false; t.guardada = false; t.aceptada = false; bien++;
     });
     ev.sugeridasVistas = true;
@@ -3736,7 +3786,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<15) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
+    if (!c.version || c.version<19) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
     else toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -3878,7 +3928,7 @@ function elegirPuestoBiblio(key){
       busy(false);
       agregar(ds.map(function(d){
         var t = nuevaTareaItem(d.medidasTexto||'');
-        Object.assign(t, {tarea:d.tarea, epp:d.epp||[], rutinaria:d.rutinaria!==false, riesgos:(d.riesgos||[]).map(function(r){ r.confirmado = true; return r; }),
+        Object.assign(t, {tarea:d.tarea, epp:d.epp||[], herramientas:d.herramientas||[], accesorios:d.accesorios||[], quimicos:d.quimicos||[], rutinaria:d.rutinaria!==false, riesgos:(d.riesgos||[]).map(function(r){ r.confirmado = true; return r; }),
           medidasActuales:d.medidasActuales||[], observacionesFoto:'', analizado:true, aceptada:true});
         return t;
       }));
@@ -3968,6 +4018,8 @@ document.addEventListener('click', function(e){
   if (d.docs){ abrirDocumentos([d.docs]); return; }
   if (b.id==='btnAddTrab'){ abrirTrabajador(null); return; } if (b.id==='btnDocsVarios'){ abrirDocumentos(null); return; }
   if (d.addepp!=null){ elegirEpp(+d.addepp); return; }
+  if (d.addel){ var ae = d.addel.split(':'); agregarElemento(+ae[0], ae[1]); return; }
+  if (d.qel){ var qx = d.qel.split(':'), tx = cur.tareas[+qx[0]]; (tx[qx[1]]||[]).splice(+qx[2],1); if (tx.analizado) tx.cambiada = true; guardarBorrador(); render(true); return; }
   if (d.qepp){ var qe = d.qepp.split(':'), tq = cur.tareas[+qe[0]]; tq.epp.splice(+qe[1],1); if (tq.analizado) tq.cambiada = true; guardarBorrador(); render(true); return; }
   if (d.abrirc!=null){ elegirCentro(d.abrirc); return; }
   if (d.orig!=null){ var to = cur.tareas[+d.orig]; to.verOrig = !to.verOrig; render(true); return; }
@@ -4080,7 +4132,7 @@ function init2(){
     run('getConfig').then(function(c){
       aplicarConfig(c);
       if (init.enlace) toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<15)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<19)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
       else if (!c.tieneClave && puede('admin') && !(c.usuario||{}).tieneClaveGemini) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       if (!abrirUnico()) render(true);
