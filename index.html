@@ -1570,11 +1570,13 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '19.0';
+var VERSION_APP = '20.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
 var ICO = {
+  descargar:'<path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  subir:'<path d="M12 16V5m0 0L7.5 9.5M12 5l4.5 4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   atras:'<path d="M15 18l-6-6 6-6"/>', chev:'<path d="M9 6l6 6-6 6"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
   ajustes:'<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   inicio:'<path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/>',
@@ -3217,14 +3219,148 @@ function renderPersonal(){
     return '<button class="li" data-ficha="'+esc(p.puesto)+'"><span class="ok-i '+(p.ficha?'si':'no')+'">'+ico(p.ficha?'ok':'alerta')+'</span><span class="tx"><b>'+esc(p.puesto)+'</b><span>'+
       (p.ficha?'Ficha lista, actualizada el '+fecha(p.actualizada)+(p.pts.length?' · '+p.pts.length+' PTS':''):'Ficha por preparar')+'</span></span><span class="chev">'+ico('chev')+'</span></button>'; }).join('')+'</div>';
   h += '<div class="sec-t">2. Personas trabajadoras ('+D.personas.length+')</div>';
-  if (!D.personas.length) h += '<p class="muted">Agrega a cada persona una vez: nombre, RUT, puesto y fecha de ingreso.</p>';
+  if (puede('evaluador')) h += '<div class="card" style="padding:12px;margin-bottom:10px"><b>Nómina desde Excel</b><p class="muted" style="margin:4px 0 8px;font-size:13.5px">Para dotaciones grandes: descarga la planilla, anota a las personas en el computador y súbela. La fecha de actualización de la IRL se anota solo a quienes corresponda.</p>'+
+    '<div class="row"><div><button class="chip" id="btnPlanilla" style="width:100%;justify-content:center">'+ico('descargar')+'Descargar planilla</button></div><div><button class="chip" id="btnCargarNomina" style="width:100%;justify-content:center">'+ico('subir')+'Cargar nómina</button></div></div>'+
+    '<input type="file" id="fNomina" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" class="hidden"></div>';
+  if (!D.personas.length) h += '<p class="muted">Agrega a cada persona una vez: nombre, RUT, puesto y fecha de ingreso, o carga la nómina desde Excel.</p>';
   else {
-    h += '<div class="list">'+D.personas.map(function(x){
-      return '<div class="li" data-trab="'+x.id+'"><span class="tx"><b>'+esc(x.nombre)+'</b><span>'+esc(x.puesto)+' · RUT '+esc(x.rut)+'</span><span class="pills">'+estadoDocs(x)+'</span></span>'+
+    var ids = D.personas.map(function(x){ return x.id; });
+    selPers = selPers.filter(function(i){ return ids.indexOf(i)>=0; });
+    var pues = unicosTxt(D.personas.map(function(x){ return x.puesto; }));
+    h += '<p class="muted" style="margin:0 0 6px;font-size:13.5px">Marca a quienes necesitan documentos y toca <b>Generar documentos</b>.</p>'+
+      (D.personas.length>8?'<input type="search" id="bPers" placeholder="Buscar por nombre o RUT" value="'+esc(filtroPers)+'" style="margin-bottom:8px">':'')+
+      '<div class="chips" style="margin-bottom:8px"><button class="chip" data-selp="todas">Todas</button><button class="chip" data-selp="ninguna">Ninguna</button><button class="chip" data-selp="pend">Con documentos pendientes</button>'+
+      (D.personas.some(function(x){ return x.actualizacionIrl || x.irlDesactualizada; })?'<button class="chip" data-selp="act">IRL por actualizar</button>':'')+
+      (pues.length>1?pues.map(function(p){ return '<button class="chip" data-selp="p:'+esc(p)+'">'+esc(p)+'</button>'; }).join(''):'')+'</div>';
+    h += '<div class="list" id="lPers">'+D.personas.map(function(x){
+      var oculto = filtroPers && (x.nombre+' '+x.rut).toLowerCase().indexOf(filtroPers.toLowerCase())<0;
+      return '<div class="li'+(oculto?' hidden':'')+'" data-trab="'+x.id+'" data-busca="'+esc((x.nombre+' '+x.rut).toLowerCase())+'"><input type="checkbox" class="selP" value="'+x.id+'"'+(selPers.indexOf(x.id)>=0?' checked':'')+' aria-label="Marcar a '+esc(x.nombre)+'" style="width:22px;height:22px;flex:none;accent-color:var(--brand)">'+
+        '<span class="tx"><b>'+esc(x.nombre)+'</b><span>'+esc(x.puesto)+' · RUT '+esc(x.rut)+'</span>'+(x.actualizacionIrl?'<span class="muted" style="font-size:12.5px">Actualización de la IRL: '+fechaIso(x.actualizacionIrl)+'</span>':'')+'<span class="pills">'+estadoDocs(x)+'</span></span>'+
         '<button class="chip" data-docs="'+x.id+'">'+ico('firma')+'Documentos</button></div>'; }).join('')+'</div>';
-    if (D.personas.length>1) h += '<button class="btn ghost" style="width:100%" id="btnDocsVarios">Documentos de varias personas</button>';
   }
+  if (D.personas.length && puede('evaluador')) return [h, '<button class="btn ghost" id="btnAddTrab" style="flex:0 0 auto" aria-label="Agregar persona">'+ico('mas')+'</button><button class="btn" id="btnDocsSel"'+(selPers.length?'':' disabled')+'>'+ico('firma')+'Generar documentos'+(selPers.length?' ('+selPers.length+')':'')+'</button>'];
   return [h, puede('evaluador')?'<button class="btn" id="btnAddTrab">'+ico('mas')+'Agregar persona</button>':''];
+}
+var selPers = [], filtroPers = '';
+function unicosTxt(l){ var v = {}; return l.filter(function(x){ x = String(x||''); if (!x || v[x]) return false; v[x] = 1; return true; }); }
+function fechaIso(iso){ var m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3]+'/'+m[2]+'/'+m[1] : String(iso||''); }
+function botonSel(){ var b = $('btnDocsSel'); if (!b) return; b.disabled = !selPers.length; b.innerHTML = ico('firma')+'Generar documentos'+(selPers.length?' ('+selPers.length+')':''); }
+function marcarPersonas(modo){
+  var D = datos.personal || {personas:[]};
+  var visibles = D.personas.filter(function(x){ return !filtroPers || (x.nombre+' '+x.rut).toLowerCase().indexOf(filtroPers.toLowerCase())>=0; });
+  var cumple = modo==='todas' ? function(){ return true; } : modo==='pend' ? function(x){ return pendientesDe(x).length>0; }
+    : modo==='act' ? function(x){ return !!(x.actualizacionIrl || x.irlDesactualizada); } : modo.indexOf('p:')===0 ? function(x){ return x.puesto===modo.slice(2); } : null;
+  if (modo==='ninguna') selPers = [];
+  else if (modo.indexOf('p:')===0) visibles.filter(cumple).forEach(function(x){ if (selPers.indexOf(x.id)<0) selPers.push(x.id); });
+  else selPers = visibles.filter(cumple).map(function(x){ return x.id; });
+  document.querySelectorAll('.selP').forEach(function(c){ c.checked = selPers.indexOf(c.value)>=0; }); botonSel();
+  toast(selPers.length ? selPers.length+' persona(s) marcada(s).' : 'Sin personas marcadas.');
+}
+/* ---- Nómina desde Excel: la app lee el .xlsx (o .csv) sin librerías y el servidor valida y guarda ---- */
+function descargarPlanilla(){
+  if (enDemo()) return versionCompleta('Descargar la planilla de la nómina');
+  busy(true, 'Preparando la planilla', 'Trae a las personas ya registradas y los puestos de la matriz.');
+  run('plantillaPersonal', cfg.centro).then(function(r){ busy(false);
+    var bin = atob(r.b64), u = new Uint8Array(bin.length); for (var i=0;i<bin.length;i++) u[i] = bin.charCodeAt(i);
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([u], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})); a.download = r.nombre;
+    document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    toast('Planilla descargada. Complétala y súbela con "Cargar nómina".', 6000);
+  }).catch(function(e){ busy(false); toast(e.message); });
+}
+function leerZip(buf){
+  var dv = new DataView(buf), u8 = new Uint8Array(buf), e = buf.byteLength-22;
+  while (e>=0 && dv.getUint32(e,true)!==0x06054b50) e--;
+  if (e<0) throw new Error('El archivo no es un Excel (.xlsx) válido.');
+  var n = dv.getUint16(e+10,true), p = dv.getUint32(e+16,true), out = {}, td = new TextDecoder();
+  for (var i=0;i<n;i++){
+    var met = dv.getUint16(p+10,true), csz = dv.getUint32(p+20,true), ln = dv.getUint16(p+28,true), lx = dv.getUint16(p+30,true), lc = dv.getUint16(p+32,true), off = dv.getUint32(p+42,true);
+    var nom = td.decode(u8.subarray(p+46, p+46+ln)), ini = off+30+dv.getUint16(off+26,true)+dv.getUint16(off+28,true);
+    out[nom] = {met:met, datos:u8.subarray(ini, ini+csz)}; p += 46+ln+lx+lc;
+  }
+  return out;
+}
+function zipTexto(z, nom){
+  var k = z[nom]; if (!k) return Promise.resolve('');
+  if (k.met===0) return Promise.resolve(new TextDecoder().decode(k.datos));
+  if (typeof DecompressionStream==='undefined') return Promise.reject(new Error('Este navegador no puede leer Excel. Actualiza Chrome o sube el archivo como .csv.'));
+  return new Response(new Blob([k.datos]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+}
+function leerXlsx(buf){
+  var z = leerZip(buf), xml = function(t){ return new DOMParser().parseFromString(t, 'application/xml'); };
+  return Promise.all([zipTexto(z,'xl/workbook.xml'), zipTexto(z,'xl/_rels/workbook.xml.rels'), zipTexto(z,'xl/sharedStrings.xml')]).then(function(a){
+    var wb = xml(a[0]), rel = xml(a[1]), ss = a[2] ? Array.from(xml(a[2]).getElementsByTagName('si')).map(function(si){ return Array.from(si.getElementsByTagName('t')).map(function(t){ return t.textContent; }).join(''); }) : [];
+    var hojas = Array.from(wb.getElementsByTagName('sheet')), h = hojas.filter(function(x){ return /n[oó]mina/i.test(x.getAttribute('name')); })[0] || hojas[0];
+    var rid = h && (h.getAttribute('r:id') || h.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id'));
+    var tgt = (Array.from(rel.getElementsByTagName('Relationship')).filter(function(r){ return r.getAttribute('Id')===rid; })[0] || {getAttribute:function(){ return 'worksheets/sheet1.xml'; }}).getAttribute('Target');
+    tgt = tgt.replace(/^\/?xl\//,'').replace(/^\//,''); 
+    return zipTexto(z, 'xl/'+tgt).then(function(t){
+      var filas = [];
+      Array.from(xml(t).getElementsByTagName('row')).forEach(function(row){
+        var r = +row.getAttribute('r'), f = [];
+        Array.from(row.getElementsByTagName('c')).forEach(function(c){
+          var ref = c.getAttribute('r') || '', col = 0; ref.replace(/[A-Z]/g, function(ch){ col = col*26+ch.charCodeAt(0)-64; });
+          var tp = c.getAttribute('t'), v = c.getElementsByTagName('v')[0], val = v ? v.textContent : '';
+          if (tp==='s') val = ss[+val] || ''; else if (tp==='inlineStr') val = Array.from(c.getElementsByTagName('t')).map(function(x){ return x.textContent; }).join('');
+          else if (!tp || tp==='n') val = val==='' ? '' : {num:+val};
+          f[col-1] = val;
+        });
+        filas[r-1] = f;
+      });
+      return filas;
+    });
+  });
+}
+function leerCsv(t){
+  var sep = (t.split('\n')[0].match(/;/g)||[]).length > (t.split('\n')[0].match(/,/g)||[]).length ? ';' : ',';
+  return t.replace(/^﻿/,'').split(/\r?\n/).map(function(l){ var o = [], cur = '', q = false;
+    for (var i=0;i<l.length;i++){ var ch = l[i]; if (ch==='"'){ if (q && l[i+1]==='"'){ cur += '"'; i++; } else q = !q; } else if (ch===sep && !q){ o.push(cur); cur = ''; } else cur += ch; }
+    o.push(cur); return o; });
+}
+/** Convierte las filas de la hoja en personas, buscando la fila de títulos (la que tiene "RUT"). */
+function filasNomina(filas){
+  var txt = function(v){ return v && typeof v==='object' ? String(v.num) : String(v==null?'':v).trim(); };
+  var fecha = function(v){ if (v && typeof v==='object'){ var d = new Date(Math.round((v.num-25569)*86400000)); return isNaN(d) ? '' : d.toISOString().slice(0,10); } return String(v||'').trim(); };
+  var norm = function(s){ return txt(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); };
+  var hi = -1; for (var i=0;i<Math.min(filas.length,20);i++){ if ((filas[i]||[]).some(function(c){ return norm(c)==='rut'; })) { hi = i; break; } }
+  if (hi<0) throw new Error('No encontramos la fila de títulos (con la columna RUT). Usa la planilla que descarga la app.');
+  var cab = (filas[hi]||[]).map(norm), col = function(re){ for (var j=0;j<cab.length;j++) if (re.test(cab[j]||'')) return j; return -1; };
+  var C = {nombre:col(/nombre/), rut:col(/^rut/), puesto:col(/puesto|cargo/), ingreso:col(/ingreso|contrat/), act:col(/actualizaci/)};
+  var falta = ['nombre','rut','puesto'].filter(function(k){ return C[k]<0; });
+  if (falta.length) throw new Error('Faltan columnas en el archivo: '+falta.join(', ')+'. Usa la planilla que descarga la app.');
+  var out = [];
+  for (var k=hi+1;k<filas.length;k++){
+    var f = filas[k] || [], g = function(c){ return c<0 ? '' : f[c]; };
+    if (!txt(g(C.nombre)) && !txt(g(C.rut))) continue;
+    out.push({fila:k+1, nombre:txt(g(C.nombre)), rut:txt(g(C.rut)), puesto:txt(g(C.puesto)), ingreso:fecha(g(C.ingreso)), actualizacion:fecha(g(C.act))});
+  }
+  if (!out.length) throw new Error('El archivo no trae personas anotadas.');
+  return out;
+}
+function cargarNomina(file){
+  if (!file) return;
+  if (enDemo()) return versionCompleta('Cargar la nómina desde Excel');
+  busy(true, 'Leyendo el archivo', file.name);
+  var lect = /\.csv$/i.test(file.name) ? file.text().then(leerCsv) : file.arrayBuffer().then(leerXlsx);
+  var filas;
+  lect.then(function(f){ filas = filasNomina(f); return run('guardarNomina', cfg.centro, filas, true); }).then(function(r){ busy(false); revisarNomina(filas, r); })
+    .catch(function(e){ busy(false); toast(e.message, 8000); });
+}
+function revisarNomina(filas, r){
+  var R = r.resumen, malas = r.filas.filter(function(x){ return x.estado==='error'; }), guardar = R.nuevas + R.actualiza;
+  var linea = function(n, t, cls){ return n ? '<div class="li" style="padding:9px 12px"><span class="tx"><b class="'+(cls||'')+'">'+n+'</b> '+t+'</span></div>' : ''; };
+  var h = cabecera('Revisar nómina')+'<p class="muted" style="margin-top:0">Leímos '+r.filas.length+' persona(s) del archivo. Revisa antes de guardar.</p><div class="list">'+
+    linea(R.nuevas, 'persona(s) nueva(s)', 'ok')+linea(R.actualiza, 'persona(s) ya registrada(s) con datos que cambian')+linea(R.igual, 'sin cambios')+linea(R.error, 'fila(s) con errores (no se guardan)', 'bad')+'</div>';
+  if (malas.length) h += '<div class="sec-t">Filas con errores</div><div class="note warn" style="max-height:220px;overflow:auto">'+malas.map(function(x){ return 'Fila '+x.fila+(x.nombre?' ('+esc(x.nombre)+')':'')+': '+esc(x.errores.join(', ')); }).join('<br>')+
+    '</div><p class="muted" style="font-size:13px">Corrígelas en el Excel y vuelve a subirlo: las personas ya guardadas no se duplican.'+(r.puestos&&r.puestos.length?' Puestos válidos: '+r.puestos.map(esc).join(', ')+'.':'')+'</p>';
+  var act = r.filas.filter(function(x){ return x.actualizacion && x.estado!=='error'; }).length;
+  if (act) h += '<p class="muted">'+act+' persona(s) con fecha de actualización de la IRL: su IRL saldrá como "Actualización de la IRL" con esa fecha.</p>';
+  h += guardar ? '<button class="btn" id="nmOk">Guardar '+guardar+' persona(s)</button>' : '<p class="muted">No hay cambios para guardar.</p>';
+  h += '<button class="btn ghost" style="width:100%;margin-top:6px" onclick="cerrarSheet()">'+(guardar?'Cancelar':'Cerrar')+'</button>';
+  abrirSheet(h);
+  if ($('nmOk')) $('nmOk').onclick = function(){ busy(true, 'Guardando la nómina', guardar+' persona(s)');
+    run('guardarNomina', cfg.centro, filas, false).then(function(g){ busy(false); cerrarSheet(); cargar('personal');
+      toast('Nómina guardada: '+g.nuevas+' nueva(s), '+g.actualizadas+' actualizada(s)'+(g.errores?'. '+g.errores+' fila(s) con errores quedaron fuera':'')+'.', 7000); })
+      .catch(function(e){ busy(false); toast(e.message); }); };
 }
 function lineas(t){ return String(t||'').split('\n').map(function(x){ return x.replace(/^[•\-\d.)\s]+(?=\D)/,'').trim(); }).filter(String); }
 function lineasPts(t){ return String(t||'').split('\n').map(function(x){ return x.replace(/^[•\s]+/,'').trim(); }).filter(String); }
@@ -3276,11 +3412,12 @@ function abrirTrabajador(id){
     lab('Puesto de trabajo', 'Los puestos vienen de la matriz de esta instalación. Sus documentos se arman con los riesgos de ese puesto.')+
       '<select id="tPue"><option value="">Elegir</option>'+D.puestos.map(function(p){ return '<option'+(p.puesto===x.puesto?' selected':'')+'>'+esc(p.puesto)+'</option>'; }).join('')+'</select>'+
     lab('Fecha de ingreso')+'<input type="date" id="tFec" value="'+esc(x.fechaContratacion||'')+'">'+
+    lab('Fecha de actualización de la IRL (solo si aplica)', 'Déjala en blanco si a esta persona no le corresponde actualizar la IRL. Si tiene fecha, su IRL sale como "Actualización de la IRL" con esa fecha.')+'<input type="date" id="tAct" value="'+esc(x.actualizacionIrl||'')+'">'+
     '<div style="height:14px"></div><button class="btn" id="tOk">'+(id?'Guardar':'Agregar persona')+'</button>'+
     (id&&puede('validador')?'<button class="btn ghost peligro" style="width:100%;margin-top:6px" id="tDel">Quitar de la instalación</button>':''));
   $('tRut').addEventListener('input', function(){ var v = this.value; $('tRutMsg').innerHTML = v.replace(/[^0-9kK]/g,'').length<7 ? '' : rutValido(v) ? '<span class="ok">RUT válido: '+formatoRut(v)+'</span>' : '<span class="bad">RUT no válido</span>'; });
   $('tOk').onclick = function(){
-    var d = {id:id||null, centro:cfg.centro, nombre:$('tNom').value.trim(), rut:$('tRut').value.trim(), puesto:$('tPue').value, fechaContratacion:$('tFec').value, direccion:x.direccion||''};
+    var d = {id:id||null, centro:cfg.centro, nombre:$('tNom').value.trim(), rut:$('tRut').value.trim(), puesto:$('tPue').value, fechaContratacion:$('tFec').value, actualizacionIrl:$('tAct').value, direccion:x.direccion||''};
     if (d.nombre.split(/\s+/).length<2) return toast('Escribe nombre y apellido.');
     if (!rutValido(d.rut)) return toast('Revisa el RUT.');
     if (!d.puesto) return toast('Elige el puesto.');
@@ -3294,8 +3431,8 @@ function abrirTrabajador(id){
 /** Documentos de una o varias personas: PDF para imprimir y firmar a mano, y Word para editar. */
 function abrirDocumentos(ids){
   if (enDemo()) return versionCompleta('Generar los documentos de las personas trabajadoras');
-  var D = datos.personal || {personas:[], puestos:[], eppCatalogo:{}}, varios = !ids;
-  var personas = varios ? D.personas : D.personas.filter(function(p){ return ids.indexOf(p.id)>=0; });
+  var D = datos.personal || {personas:[], puestos:[], eppCatalogo:{}}, varios = !ids || ids.length>1;
+  var personas = !ids ? D.personas : D.personas.filter(function(p){ return ids.indexOf(p.id)>=0; });
   var puestoDe = function(p){ return D.puestos.filter(function(k){ return k.puesto===p.puesto; })[0] || {pts:[], epp:[]}; };
   var sinFicha = function(p){ return !puestoDe(p).ficha; };
   var uno = !varios && personas[0], pu = uno ? puestoDe(uno) : null;
@@ -3305,14 +3442,19 @@ function abrirDocumentos(ids){
   var cat = D.eppCatalogo || {};
   var h = cabecera(varios?'Documentos de varias personas':'Documentos de '+esc(uno.nombre));
   if (uno) h += '<p class="muted" style="margin-top:0">'+esc(uno.puesto)+' · RUT '+esc(uno.rut)+'</p><div class="pills" style="margin-bottom:8px">'+estadoDocs(uno)+'</div>';
-  if (varios) h += '<p class="muted" style="margin-top:0">Marca a las personas. Las de puestos sin ficha solo pueden recibir el reglamento interno y la entrega de EPP.</p>'+personas.map(function(p){
-      return '<label class="chk" style="margin:6px 0"><input type="checkbox" class="dcP" value="'+p.id+'" checked><span>'+esc(p.nombre)+'<br><span class="muted">'+esc(p.puesto)+(sinFicha(p)?', ficha por preparar':'')+'</span></span></label>'; }).join('');
+  if (varios) { var nSin = personas.filter(sinFicha).length;
+    h += '<p class="muted" style="margin-top:0"><b>'+personas.length+' persona(s) marcada(s)</b>: '+personas.slice(0,6).map(function(p){ return esc(p.nombre); }).join(', ')+(personas.length>6?' y '+(personas.length-6)+' más':'')+'.</p>'+
+      (nSin?'<div class="note warn">'+nSin+' persona(s) son de puestos sin ficha: solo recibirán el reglamento interno y la entrega de EPP.</div>':'')+
+      '<div class="hidden">'+personas.map(function(p){ return '<input type="checkbox" class="dcP" value="'+p.id+'" checked>'; }).join('')+'</div>'; }
   if (uno && sinFicha(uno)) h += '<div class="note warn">Para la IRL y la difusión de PTS primero prepara la ficha del puesto. <button class="chip" id="dcFicha">Preparar ficha</button></div>';
   h += lab('Documentos')+MODULOS_TODOS.map(function(m){
     var dis = uno && sinFicha(uno) && (m[0]==='irl'||m[0]==='cap');
     return '<label class="chk" style="margin:6px 0'+(dis?';opacity:.5':'')+'"><input type="checkbox" class="dcM" value="'+m[0]+'"'+(!dis&&pend.indexOf(m[0])>=0?' checked':'')+(dis?' disabled':'')+'><span><b>'+m[1]+'</b><br><span class="muted">'+m[2]+'</span></span></label>'; }).join('');
   h += '<div id="dcIrl">'+lab('Oportunidad de la IRL','Art. 15 DS 44: antes de iniciar las labores y cada vez que cambien el proceso, las tecnologías, los materiales o las sustancias.')+
-    '<select id="dcMot">'+MOTIVOS_IRL.map(function(m){ return '<option value="'+m[0]+'"'+((uno&&uno.irlDesactualizada&&m[0]==='matriz')||(!(uno&&uno.irlDesactualizada)&&m[0]==='ingreso')?' selected':'')+'>'+m[1]+'</option>'; }).join('')+'</select></div>';
+    '<select id="dcMot">'+(varios?'<option value="auto" selected>Según la nómina (actualización a quienes tienen fecha; ingreso al resto)</option>':'')+MOTIVOS_IRL.map(function(m){
+      var sel = !varios && ((uno.actualizacionIrl&&m[0]==='irl')||(!uno.actualizacionIrl&&uno.irlDesactualizada&&m[0]==='matriz')||(!uno.actualizacionIrl&&!uno.irlDesactualizada&&m[0]==='ingreso'));
+      return '<option value="'+m[0]+'"'+(sel?' selected':'')+'>'+m[1]+'</option>'; }).join('')+'</select>'+
+    (uno&&uno.actualizacionIrl?'<p class="muted" style="font-size:13px">Fecha de actualización de la IRL: '+fechaIso(uno.actualizacionIrl)+'.</p>':'')+'</div>';
   if (uno && pu.pts.length) h += '<div id="dcPts">'+lab('Procedimientos para difundir','Un registro de 1 hora por cada procedimiento marcado.')+pu.pts.map(function(p){
       var hecho = uno.estado && uno.estado.cap && uno.estado.cap[p];
       return '<label class="chk" style="margin:4px 0"><input type="checkbox" class="dcPt" value="'+esc(p)+'"'+(hecho?'':' checked')+'><span>'+esc(p)+(hecho?' <span class="muted">(difundido el '+fecha(hecho)+')</span>':'')+'</span></label>'; }).join('')+'</div>';
@@ -3786,7 +3928,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<19) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
+    if (!c.version || c.version<20) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
     else toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -3952,6 +4094,7 @@ function elegirPuestoBiblio(key){
   });
 })();
 document.addEventListener('input', function(e){
+  if (e.target.id==='bPers'){ filtroPers = e.target.value.trim(); var q = filtroPers.toLowerCase(); document.querySelectorAll('#lPers .li').forEach(function(li){ li.classList.toggle('hidden', !!q && li.dataset.busca.indexOf(q)<0); }); return; }
   var el = e.target;
   if (el.dataset.f){ cur[el.dataset.f] = el.value; guardarBorrador(); }
   if (el.dataset.p){ setCampo(el.dataset.p, el.value); guardarBorrador(); }
@@ -3962,6 +4105,8 @@ document.addEventListener('input', function(e){
   if (el.id==='buscar'){ filtroMatriz = el.value; var pos = el.selectionStart; render(true); var nb = $('buscar'); nb.focus(); nb.setSelectionRange(pos,pos); }
 });
 document.addEventListener('change', function(e){
+  if (e.target.classList && e.target.classList.contains('selP')){ var sid = e.target.value; selPers = selPers.filter(function(i){ return i!==sid; }); if (e.target.checked) selPers.push(sid); botonSel(); return; }
+  if (e.target.id==='fNomina'){ cargarNomina(e.target.files[0]); return; }
   var el = e.target;
   if (el.classList.contains('selT')){ selMatriz[el.value] = el.checked; render(true); return; }
   if (el.id==='foto'){
@@ -3988,7 +4133,7 @@ document.addEventListener('change', function(e){
 document.addEventListener('click', function(e){
   if (e.target.id==='rgPriv'){ e.preventDefault(); abrirPrivacidad(false); return; }
   var t0 = e.target.closest('[data-exp],[data-abrir],[data-ir],[data-user],[data-cump],[data-trab]');
-  if (t0 && !e.target.closest('button')){
+  if (t0 && !e.target.closest('button') && !e.target.classList.contains('selP')){
     var dd = t0.dataset;
     if (dd.exp!=null){ var i = +dd.exp; cur.exp = cur.exp===i ? -1 : i; render(true); var rr = document.querySelector('[data-exp="'+i+'"]'); if (rr) rr.scrollIntoView({block:'nearest'}); return; }
     if (dd.abrir){ abrirBorrador(dd.abrir); return; }
@@ -4017,6 +4162,10 @@ document.addEventListener('click', function(e){
   if (d.ficha!=null){ abrirFichaPuesto(d.ficha); return; }
   if (d.docs){ abrirDocumentos([d.docs]); return; }
   if (b.id==='btnAddTrab'){ abrirTrabajador(null); return; } if (b.id==='btnDocsVarios'){ abrirDocumentos(null); return; }
+  if (b.id==='btnDocsSel'){ if (selPers.length) abrirDocumentos(selPers.slice()); return; }
+  if (d.selp){ marcarPersonas(d.selp); return; }
+  if (b.id==='btnPlanilla'){ descargarPlanilla(); return; }
+  if (b.id==='btnCargarNomina'){ if (enDemo()) return versionCompleta('Cargar la nómina desde Excel'); $('fNomina').value = ''; $('fNomina').click(); return; }
   if (d.addepp!=null){ elegirEpp(+d.addepp); return; }
   if (d.addel){ var ae = d.addel.split(':'); agregarElemento(+ae[0], ae[1]); return; }
   if (d.qel){ var qx = d.qel.split(':'), tx = cur.tareas[+qx[0]]; (tx[qx[1]]||[]).splice(+qx[2],1); if (tx.analizado) tx.cambiada = true; guardarBorrador(); render(true); return; }
@@ -4132,7 +4281,7 @@ function init2(){
     run('getConfig').then(function(c){
       aplicarConfig(c);
       if (init.enlace) toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<19)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<20)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
       else if (!c.tieneClave && puede('admin') && !(c.usuario||{}).tieneClaveGemini) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       if (!abrirUnico()) render(true);
