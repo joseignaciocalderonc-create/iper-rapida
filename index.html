@@ -1570,7 +1570,7 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '26.1';
+var VERSION_APP = '26.2';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24) */
@@ -2002,6 +2002,7 @@ function run(fn){
       job.hecho = true; delete enCurso[job.id];
       if (!j.ok){
         if (/^SESION:/.test(j.error)){ var msg = j.error.replace(/^SESION:\s*/,''); setTimeout(function(){ cerrarSesionLocal(msg); }, 0); var es = new Error(msg); es.sesion = true; throw es; }
+        if (/No tienes acceso a esa instalaci/i.test(j.error||'')) setTimeout(function(){ soltarCentroInvalido(true); }, 0);
         throw new Error(j.error);
       }
       return j.data;
@@ -4204,9 +4205,19 @@ function aplicarConfig(c){
   var ci = centroInfo(cfg.centro); if (ci && cfg.empresa!==ci.razonSocial){ cfg.empresa = ci.razonSocial; save('iper_cfg', cfg); }
   if (cfg.centro && centroInfo(cfg.centro) && cfg.centro!==centroInfo(cfg.centro).id){ cfg.centro = centroInfo(cfg.centro).id; save('iper_cfg', cfg); }
   Object.keys(borradores).forEach(function(k){ var b = borradores[k], c = centroInfo(b.centro); if (c && b.centro!==c.id){ b.centro = c.id; save('iper_borradores', borradores); } });
+  if (modo()!=='demo' && cfg.centro && (c.centros || !Object.keys(c).length) && !centroInfo(cfg.centro)) soltarCentroInvalido();
   if (!cfg.centro && (SRV.centros||[]).length===1){ cfg.centro = SRV.centros[0].id; cfg.empresa = SRV.centros[0].razonSocial; save('iper_cfg', cfg); }
   if (modo()!=='demo' && c.usuario && c.usuario.tipo==='cuenta' && [c.usuario.correo].concat(c.usuario.correosDestino||[]).indexOf(cfg.email)<0){ cfg.email = c.usuario.correo; save('iper_cfg', cfg); }
   if (modo()!=='demo' && !cfg.email && c.email){ cfg.email = c.email; save('iper_cfg', cfg); }
+}
+/** La instalación guardada en el teléfono ya no existe o no es de esta cuenta: se olvida y se vuelve a la lista. */
+function soltarCentroInvalido(avisar){
+  if (!cfg.centro) return;
+  cfg.centro = ''; save('iper_cfg', cfg); cur = null;
+  datos = {tareas:null, medidas:null, panel:null, usuarios:datos.usuarios, cumpl:null, personal:null};
+  if (TABS_CENTRO.indexOf(tab)>=0){ tab = 'centros'; setTimeout(function(){ render(); }, 0); }
+  if (avisar) setTimeout(function(){ toast('Esa instalación ya no está en tu cuenta. Elige una de la lista.', 5000); }, 50);
+  if (avisar) refrescarConfig();
 }
 function refrescarConfig(){ run('getConfig').then(function(c){ aplicarConfig(c); pintarCabecera(); }).catch(function(){}); }
 function probarConexion(){
