@@ -3,6 +3,7 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="theme-color" content="#0F172A">
 <title>Gestión PrevFront</title>
@@ -564,6 +565,7 @@
   .hecho .seg button{padding:8px 0;font-size:13px;min-height:38px}
   .arbol-box{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff;padding:8px;margin:6px 0}
   .arbol-box svg{display:block;max-width:none}
+  .pista{font-size:13px;color:var(--txt2);background:#F8FAFC;border-left:3px solid var(--line2);border-radius:6px;padding:7px 10px;margin:4px 0 6px;line-height:1.4}
 </style>
 </head>
 <body>
@@ -593,6 +595,7 @@
 <input type="file" id="fotoEvid" accept="image/*" class="hidden">
 <input type="file" id="fotoInsp" accept="image/*" capture="environment" class="hidden">
 <input type="file" id="fotoInv" accept="image/*" capture="environment" class="hidden">
+<input type="file" id="archInv" accept=".pdf,.doc,.docx,.xls,.xlsx,image/*,application/pdf" class="hidden">
 
 <div class="overlay" id="busy" role="status" aria-live="polite"><div class="box"><div class="spin"></div><b id="busyTxt">Analizando…</b><div class="muted" id="busySub" style="margin-top:6px"></div>
   <div class="prog hidden" id="busyProg"><div class="pt"><i id="busyBar"></i></div><span id="busyPct">0%</span></div></div></div>
@@ -5239,7 +5242,7 @@ var INV = null, INV_CTX = null, INV_ABIERTA = {}, INV_SUCIA = false, INV_T = nul
 var FOTO_CATS = [['Vista general del lugar','Desde lejos, que se vea el entorno completo, antes de mover nada.'],['Punto exacto del accidente','Donde ocurrió la lesión, con una referencia de tamaño.'],
   ['Agente o elemento de la lesión','Máquina, herramienta, material o superficie que causó la lesión.'],['Superficie o condición del entorno','Piso, iluminación, orden, señalización, desniveles.'],
   ['EPP que usaba','Estado de los elementos de protección personal.'],['Reconstitución de la postura','Otra persona reproduce la postura o el movimiento, sin riesgo.'],
-  ['Zona lesionada','Solo con consentimiento escrito de la persona; nunca el rostro.'],['Documento o registro','PTS, registro de capacitación, mantención, permiso de trabajo.'],['Otra evidencia','']];
+  ['Zona lesionada','Solo con consentimiento escrito de la persona; nunca el rostro.'],['Documento o registro','Sube el archivo (PTS, registro de capacitación, mantención, permiso de trabajo) o fotografía el documento en papel.'],['Otra evidencia','']];
 var DOC_INV = ['Información de los riesgos laborales (IRL) entregada','Reglamento interno entregado','Difusión del PTS de la tarea','Entrega de EPP registrada',
   'Riesgo identificado en la matriz para la tarea','Medidas de la matriz implementadas','Capacitación específica en la tarea','Mantención de máquinas, equipos o herramientas',
   'Análisis seguro o permiso de trabajo (si corresponde)','Supervisión de la tarea al momento del accidente','Inspecciones previas del área'];
@@ -5248,6 +5251,14 @@ var PREG_INV = {
   testigos:['¿Dónde estaba usted y qué hacía?','¿Qué vio y qué escuchó?','¿Qué hizo después del accidente?','¿Había ocurrido antes algo parecido?'],
   jefatura:['¿Quién asignó la tarea y con qué instrucciones?','¿Existe un procedimiento escrito para esta tarea? ¿Se difundió?','¿Hubo cambios recientes de personal, equipos, materiales o turnos?','¿Cómo se supervisa esta tarea?']
 };
+var ROLES_FIRMA = ['Experto/a en prevención de riesgos (investigador/a)','Jefe/a del Departamento de Prevención de Riesgos','Comité Paritario de Higiene y Seguridad','Delegado/a de Seguridad y Salud en el Trabajo',
+  'Jefatura directa','Supervisor/a del área','Gerente/a o administrador/a','Representante legal de la entidad empleadora','Recursos humanos','Otro'];
+function firmantesInv(){
+  INV.firmas = INV.firmas || {};
+  if (!INV.firmas.lista){ var F = INV.firmas, dc = INV.declaraciones||{};
+    INV.firmas.lista = [{rol:ROLES_FIRMA[0], nombre:'', cargo:''}, {rol:ROLES_FIRMA[2], nombre:F.cphsNombre||'', cargo:F.cphsCargo||''}, {rol:'Jefatura directa', nombre:F.jefaturaNombre||dc.jefaturaNombre||'', cargo:F.jefaturaCargo||dc.jefaturaCargo||''}]; }
+  return INV.firmas.lista;
+}
 function invVacia(){ return {id:null, inicio:hoyIso(), primeras:{}, accidentado:{}, evento:{tipo:'Del trabajo', gravedad:'Leve', calificacion:'En proceso de calificación'}, sitio:{}, declaraciones:{testigos:[]}, documental:{items:DOC_INV.map(function(t){ return {txt:t, res:'', obs:''}; })}, firmas:{}, fotos:[]}; }
 function invGet(path){ var o = INV; path.split('.').forEach(function(k){ o = o==null ? undefined : o[k]; }); return o; }
 function invSet(path, v){ var a = path.split('.'), o = INV; for (var i=0;i<a.length-1;i++){ if (o[a[i]]==null) o[a[i]] = /^\d+$/.test(a[i+1]) ? [] : {}; o = o[a[i]]; } o[a[a.length-1]] = v; INV_SUCIA = true; invLocal(); }
@@ -5314,7 +5325,7 @@ function guiaInv(){
     if (!p.avisoIT || !p.avisoSeremi) out.push(['crit','Informa de inmediato a la Inspección del Trabajo y a la SEREMI de Salud del lugar del accidente, y marca la DIAT como accidente grave o fatal.']);
     out.push(['info','En accidentes graves o fatales investiga el Comité Paritario con la asesoría del organismo administrador, que también hace su propia investigación.']);
   }
-  if (!p.diat) out.push(['warn','Envía la denuncia (DIAT) al organismo administrador dentro de 24 horas y anota su número.']);
+  if (!p.diatEnviada && !p.diat) out.push(['warn','Envía la denuncia (DIAT) al organismo administrador dentro de 24 horas y márcala como enviada.']);
   if (!f.length) out.push(['warn','Ve al sitio lo antes posible, antes de que cambien las condiciones. Fotografía primero sin mover nada: vista general, punto exacto y agente de la lesión.']);
   else { var cats = f.map(function(x){ return x.cat; }); ['Vista general del lugar','Punto exacto del accidente','Agente o elemento de la lesión'].forEach(function(c){ if (cats.indexOf(c)<0) out.push(['warn','Falta la fotografía: '+c.toLowerCase()+'.']); }); }
   if (!d.accidentado) out.push(['warn','Toma la declaración de la persona accidentada, en sus palabras y por escrito, en un lugar tranquilo. Usa preguntas abiertas y no conducentes.']);
@@ -5333,7 +5344,7 @@ function invSec(k, n, titulo, estado, cuerpo){
 }
 function iTxt(path, et, ph, extra){ return lab(et)+'<input type="text" data-iv="'+path+'" value="'+esc(invGet(path)||'')+'" placeholder="'+esc(ph||'')+'"'+(extra||'')+'>'; }
 function iFec(path, et){ return lab(et)+'<input type="date" data-iv="'+path+'" value="'+esc(invGet(path)||'')+'">'; }
-function iArea(path, et, ph, filas, ayudaTxt){ var id = 'iv_'+path.replace(/\./g,'_'); return '<label class="lbl"><span>'+et+(ayudaTxt?ayuda(ayudaTxt):'')+'</span>'+micBtn('#'+id)+'</label><textarea id="'+id+'" data-iv="'+path+'" rows="'+(filas||3)+'" placeholder="'+esc(ph||'')+'">'+esc(invGet(path)||'')+'</textarea>'; }
+function iArea(path, et, ph, filas, ayudaTxt){ var id = 'iv_'+path.replace(/\./g,'_'); return '<label class="lbl"><span>'+et+'</span>'+micBtn('#'+id)+'</label>'+(ayudaTxt?'<div class="pista">'+esc(ayudaTxt)+'</div>':'')+'<textarea id="'+id+'" data-iv="'+path+'" rows="'+(filas||3)+'" placeholder="'+esc(ph||'')+'">'+esc(invGet(path)||'')+'</textarea>'; }
 function iSeg(path, et, ops){ var v = invGet(path)||''; return lab(et)+'<div class="seg">'+ops.map(function(o){ return '<button type="button" data-g="ivseg:'+path+':'+o+'" class="'+(v===o?'on':'')+'">'+o+'</button>'; }).join('')+'</div>'; }
 function iChk(path, txt){ return '<label class="chk" style="margin-top:6px"><input type="checkbox" data-iv="'+path+'"'+(invGet(path)?' checked':'')+'> '+txt+'</label>'; }
 function preguntasHtml(tipo){
@@ -5356,14 +5367,15 @@ function renderInvEditor(){
     (ed?'<button class="btn sec" style="margin-top:8px" data-g="invorienta">'+ico('ia')+(O?'Pedir nueva orientación al perito IA':'Pedir orientación al perito IA')+'</button>':'')+'</div>';
   // 1. Primeras acciones
   var grave = e.gravedad==='Grave' || e.gravedad==='Fatal';
-  h += invSec('primeras', 1, 'Gravedad y primeras acciones', (e.gravedad||'')+(p.diat?' · DIAT '+esc(p.diat):''),
+  h += invSec('primeras', 1, 'Gravedad y primeras acciones', (e.gravedad||'')+(p.diatEnviada||p.diat?' · DIAT enviada':''),
     iSeg('evento.gravedad','Clasificación según gravedad',['Leve','Grave','Fatal'])+
     '<p class="muted" style="font-size:13px;margin:6px 0 0">Grave: amputación o pérdida de una parte del cuerpo, maniobras de reanimación o de rescate, caída de más de 1,8 m, condiciones hiperbáricas, o tantas personas afectadas que se altera la faena.</p>'+
     iSeg('evento.tipo','Tipo',['Del trabajo','De trayecto'])+
-    '<div class="grid2"><div>'+iTxt('primeras.diat','N° de DIAT','Número de la denuncia')+'</div><div>'+iFec('primeras.diatFecha','Fecha de la DIAT')+'</div></div>'+
+    iChk('primeras.diatEnviada','DIAT enviada al organismo administrador')+
     iChk('primeras.atencion','Persona derivada al organismo administrador')+iChk('primeras.sitioResguardado','Sitio del suceso resguardado (sin mover nada)')+iChk('primeras.cphs','Comité Paritario o Delegado informado')+
     (grave ? iChk('primeras.suspension','Faena afectada suspendida')+iChk('primeras.avisoIT','Aviso inmediato a la Inspección del Trabajo')+iChk('primeras.avisoSeremi','Aviso inmediato a la SEREMI de Salud') : '')+
-    iArea('primeras.notas','Notas de las primeras acciones','Hora del aviso, quién atendió, traslado, etc.',2));
+    iArea('primeras.notas','Notas de las primeras acciones','Ej.: 10:15 aviso a la jefatura; 10:20 primeros auxilios en el lugar; 10:40 traslado al organismo administrador en vehículo de la empresa.',3,
+      'Anota con hora: cuándo y a quién se avisó, quién prestó los primeros auxilios, cómo y a dónde se trasladó a la persona, y qué se hizo para resguardar el área.'));
   // 2. Persona
   var D = datos.personal, opP = D ? D.personas : [];
   h += invSec('persona', 2, 'Persona accidentada', a.nombre ? esc(a.nombre) : 'Por completar',
@@ -5386,12 +5398,13 @@ function renderInvEditor(){
     '<div class="grid2"><div>'+iTxt('evento.reposo','Días de reposo','Si se conoce')+'</div><div>'+lab('Calificación')+'<select data-iv="evento.calificacion">'+['En proceso de calificación','Accidente del trabajo','Accidente de trayecto','De origen común'].map(function(o){ return '<option'+((e.calificacion||'')===o?' selected':'')+'>'+o+'</option>'; }).join('')+'</select></div></div>');
   // 4. Sitio y fotos
   var fotos = X.fotos||[], pend = INV_FOTOS_PEND.filter(function(f){ return f.inv===(X.id||'nueva'); });
-  h += invSec('sitio', 4, 'Sitio del suceso y fotografías', (fotos.length+pend.length)+' foto(s)',
-    iArea('sitio.observaciones','Observaciones del sitio','Describe lo que ves, sin interpretar: disposición, superficie, iluminación, orden, señalización, máquinas, distancias.',4,'Usa todos los sentidos: olores, temperatura, ruido. Mide distancias y alturas relevantes.')+
+  h += invSec('sitio', 4, 'Sitio del suceso, fotografías y documentos', (fotos.length+pend.length)+' archivo(s)',
+    iArea('sitio.observaciones','Observaciones del sitio','Ej.: Piso vinílico húmedo en un radio de 2 m alrededor del punto de caída; sin letrero de piso mojado; iluminación natural suficiente; balde y espátula junto al muro.',4,
+      'Describe solo lo que ves y puedes medir, sin interpretar: disposición del lugar, superficie del piso, iluminación, orden y aseo, señalización, máquinas o equipos, distancias y alturas. Usa todos los sentidos: olores, temperatura, ruido.')+
     iTxt('sitio.condiciones','Condiciones ambientales','Iluminación, temperatura, lluvia, ruido…')+iTxt('sitio.epp','EPP que usaba la persona','Y su estado')+
-    '<div class="sec-t" style="margin-top:14px">Fotografías</div>'+
-    (fotos.length||pend.length ? '<div class="fotos-inv">'+fotos.map(function(f){ return '<div class="fi-it"><a href="'+esc(f.url)+'" target="_blank" rel="noopener" class="fi-th">'+ico('foto')+'</a><div class="tx"><b>'+esc(f.cat)+'</b><span>'+esc(f.desc||'')+'</span></div>'+(ed?'<button class="x" data-g="invfq:'+f.fileId+'" aria-label="Quitar foto">×</button>':'')+'</div>'; }).join('')+
-      pend.map(function(f){ return '<div class="fi-it"><img src="'+f.thumb+'" class="fi-img" alt=""><div class="tx"><b>'+esc(f.cat)+'</b><span>'+esc(f.desc||'')+' · pendiente de subir</span></div></div>'; }).join('')+'</div>' : '<p class="muted">Sin fotografías.</p>')+
+    '<div class="sec-t" style="margin-top:14px">Fotografías y documentos</div>'+
+    (fotos.length||pend.length ? '<div class="fotos-inv">'+fotos.map(function(f){ return '<div class="fi-it"><a href="'+esc(f.url)+'" target="_blank" rel="noopener" class="fi-th">'+ico(f.archivo?'docs':'foto')+'</a><div class="tx"><b>'+esc(f.archivo||f.cat)+'</b><span>'+esc(f.archivo?f.cat+(f.desc?' · '+f.desc:''):(f.desc||''))+'</span></div>'+(ed?'<button class="x" data-g="invfq:'+f.fileId+'" aria-label="Quitar">×</button>':'')+'</div>'; }).join('')+
+      pend.map(function(f){ return '<div class="fi-it">'+(f.thumb?'<img src="'+f.thumb+'" class="fi-img" alt="">':'<span class="fi-th">'+ico('docs')+'</span>')+'<div class="tx"><b>'+esc(f.nombre||f.cat)+'</b><span>'+esc(f.desc||'')+' · pendiente de subir</span></div></div>'; }).join('')+'</div>' : '<p class="muted">Sin fotografías.</p>')+
     (ed?'<div class="list" style="margin-top:8px">'+FOTO_CATS.map(function(c,i){ var n = fotos.filter(function(f){ return f.cat===c[0]; }).length;
       return '<button class="li" data-g="invfoto:'+i+'"><span class="ok-i '+(n?'si':'no')+'">'+ico(n?'ok':'foto')+'</span><span class="tx"><b class="wrap">'+c[0]+(n?' ('+n+')':'')+'</b><span>'+esc(c[1])+'</span></span>'+ico('mas')+'</button>'; }).join('')+'</div>':''));
   // 5. Declaraciones
@@ -5421,8 +5434,11 @@ function renderInvEditor(){
   var F = X.firmas||{};
   h += invSec('informe', 8, 'Informe y firmas', X.pdf ? 'Versión '+X.version : 'Pendiente',
     '<div class="grid2"><div>'+iFec('inicio','Inicio de la investigación')+'</div><div>'+iFec('termino','Término de la investigación')+'</div></div>'+
-    '<div class="grid2"><div>'+iTxt('firmas.cphsNombre','Firma Comité Paritario / Delegado','Nombre')+'</div><div>'+iTxt('firmas.cphsCargo','Cargo en el Comité','Ej.: Presidente')+'</div></div>'+
-    '<p class="muted" style="font-size:13px">Firman a mano: quien investiga (tú), el Comité Paritario o Delegado y la jefatura directa.</p>'+
+    '<div class="sub2" style="margin-top:12px">Quiénes firman el informe</div><div class="pista">Elige el rol de cada firmante. Si dejas el nombre en blanco, el informe deja la línea para completar a mano.</div>'+
+    firmantesInv().map(function(f, k){ return '<div class="card" style="padding:12px;margin:8px 0"><div class="lbl"><b>Firma '+(k+1)+'</b>'+(ed?'<button class="x" data-g="invfdel:'+k+'" aria-label="Quitar firmante">×</button>':'')+'</div>'+
+      lab('Rol')+'<select data-iv="firmas.lista.'+k+'.rol">'+ROLES_FIRMA.map(function(r){ return '<option'+(f.rol===r?' selected':'')+'>'+esc(r)+'</option>'; }).join('')+'</select>'+
+      '<div class="grid2"><div>'+iTxt('firmas.lista.'+k+'.nombre','Nombre', k===0&&/experto|investigador/i.test(f.rol)?(cfg.nombre||'Tu nombre'):'Nombre')+'</div><div>'+iTxt('firmas.lista.'+k+'.cargo','Cargo', 'Cargo')+'</div></div></div>'; }).join('')+
+    (ed && firmantesInv().length<9 ? '<button class="btn sec" data-g="invfadd">'+ico('mas')+'Agregar firmante</button>' : '')+
     iChk('_cerrar','Cerrar la investigación al emitir')+iChk('_enviar','Enviar también a mi correo')+
     (X.pdf?'<div class="acts"><a class="chip" href="'+esc(X.pdf)+'" target="_blank" rel="noopener">'+ico('descargar')+'Último PDF (v'+X.version+')</a>'+(X.word?'<a class="chip" href="'+esc(X.word)+'" target="_blank" rel="noopener">Word</a>':'')+'</div>':'')+
     (ed?'<button class="btn" style="margin-top:10px" data-g="invemitir"'+(A&&A.hechos?'':' disabled')+'>'+ico('emitir')+'Emitir informe (PDF y Word)</button>':'')+
@@ -5536,17 +5552,37 @@ function invGuardar(silencio){
 function invSubirPendientes(){
   var mios = INV_FOTOS_PEND.filter(function(f){ return f.inv===INV.id || f.inv==='nueva'; });
   return mios.reduce(function(p, f){ return p.then(function(){
-    return run('subirFotoInvestigacion', INV.id, {mime:f.mime, data:f.data, cat:f.cat, desc:f.desc}).then(function(r){ INV.fotos = r.fotos; INV_FOTOS_PEND = INV_FOTOS_PEND.filter(function(z){ return z!==f; }); });
+    return run('subirFotoInvestigacion', INV.id, {mime:f.mime, data:f.data, cat:f.cat, desc:f.desc, nombre:f.nombre||''}).then(function(r){ INV.fotos = r.fotos; INV_FOTOS_PEND = INV_FOTOS_PEND.filter(function(z){ return z!==f; }); });
   }); }, Promise.resolve()).catch(function(e){ toast('Fotos pendientes de subir: '+e.message); });
 }
 function invTomarFoto(i){
-  var c = FOTO_CATS[i];
-  abrirSheet(cabecera(esc(c[0]))+(c[1]?'<p class="muted" style="margin-top:0">'+esc(c[1])+'</p>':'')+lab('Qué muestra la fotografía')+'<input type="text" id="ivfDesc" placeholder="Ej.: piso vinílico con producto aplicado, vista desde la puerta">'+
-    '<div style="height:12px"></div><button class="btn" id="ivfOk">'+ico('foto')+'Tomar o elegir fotografía</button>');
+  var c = FOTO_CATS[i], doc = c[0]==='Documento o registro';
+  abrirSheet(cabecera(esc(c[0]))+(c[1]?'<p class="muted" style="margin-top:0">'+esc(c[1])+'</p>':'')+lab(doc?'Qué documento es':'Qué muestra la fotografía')+
+    '<div class="pista">'+(doc?'Nombre y fecha del documento, y qué acredita.':'Qué se ve y desde dónde se tomó.')+'</div>'+
+    '<input type="text" id="ivfDesc" placeholder="'+(doc?'Ej.: PTS de limpieza de pisos, versión 2, difundido en marzo':'Ej.: piso vinílico con producto aplicado, vista desde la puerta')+'">'+
+    '<div style="height:12px"></div>'+(doc?'<button class="btn" id="ivfArch">'+ico('subir')+'Subir archivo (PDF, Word o Excel)</button><div style="height:8px"></div><button class="btn sec" id="ivfOk">'+ico('foto')+'Fotografiar el documento</button>'
+      : '<button class="btn" id="ivfOk">'+ico('foto')+'Tomar o elegir fotografía</button>'));
   $('ivfOk').onclick = function(){ var inp = $('fotoInv'); inp.dataset.cat = c[0]; inp.dataset.desc = $('ivfDesc').value.trim(); inp.value = ''; cerrarSheet(); inp.click(); };
+  if ($('ivfArch')) $('ivfArch').onclick = function(){ var inp = $('archInv'); inp.dataset.cat = c[0]; inp.dataset.desc = $('ivfDesc').value.trim(); inp.value = ''; cerrarSheet(); inp.click(); };
+}
+function leerArchivoB64(file){
+  return new Promise(function(ok, ko){
+    if (file.size > 10*1024*1024) return ko(new Error('El archivo pesa más de 10 MB. Súbelo comprimido o en partes.'));
+    var rd = new FileReader(); rd.onload = function(){ ok(String(rd.result).split(',')[1]); }; rd.onerror = function(){ ko(new Error('No se pudo leer el archivo.')); }; rd.readAsDataURL(file);
+  });
 }
 document.addEventListener('change', function(e){
   var el = e.target;
+  if (el.id==='archInv' && el.files[0] && INV){
+    var fa = el.files[0], catA = el.dataset.cat, descA = el.dataset.desc;
+    var listoA = /^image\//.test(fa.type) ? procesarFoto(fa, 1400).then(function(f){ return {mime:f.mime, data:f.data, thumb:f.thumb}; })
+      : leerArchivoB64(fa).then(function(d){ return {mime:fa.type||'application/octet-stream', data:d, nombre:fa.name}; });
+    listoA.then(function(f){
+      INV_FOTOS_PEND.push({inv:INV.id||'nueva', mime:f.mime, data:f.data, thumb:f.thumb||'', nombre:f.nombre||'', cat:catA, desc:descA}); INV_ABIERTA.sitio = true;
+      if (INV.id && online()){ busy(true,'Subiendo el archivo…'); return invSubirPendientes().then(function(){ busy(false); render(true); toast('Archivo guardado.'); }); }
+      render(true); toast('Archivo listo. Se sube al guardar el avance.');
+    }).catch(function(er){ busy(false); toast(er.message); });
+  }
   if (el.id==='fotoInv' && el.files[0] && INV){
     var cat = el.dataset.cat, desc = el.dataset.desc;
     procesarFoto(el.files[0], 1400).then(function(f){
@@ -5586,6 +5622,8 @@ function invAccion(c, a){
   if (c==='ivseg'){ invSet(a[1], a[2]); return render(true); }
   if (c==='ivdoc'){ var it = INV.documental.items[+a[1]]; it.res = it.res===a[2] ? '' : a[2]; it.manual = true; INV_SUCIA = true; invLocal(); return render(true); }
   if (c==='invfoto') return invTomarFoto(+a[1]);
+  if (c==='invfadd'){ firmantesInv().push({rol:'Otro', nombre:'', cargo:''}); INV_SUCIA = true; invLocal(); return render(true); }
+  if (c==='invfdel'){ firmantesInv().splice(+a[1],1); INV_SUCIA = true; invLocal(); return render(true); }
   if (c==='invfq'){ var fid = a.slice(1).join(':'); busy(true,'Quitando la fotografía…'); return run('quitarFotoInvestigacion', INV.id, fid).then(function(r){ busy(false); INV.fotos = r.fotos; render(true); }).catch(function(e){ busy(false); toast(e.message); }); }
   if (c==='invtadd'){ INV.declaraciones.testigos = (INV.declaraciones.testigos||[]).concat([{nombre:'', cargo:'', declaracion:''}]); INV_SUCIA = true; invLocal(); INV_ABIERTA.decl = true; return render(true); }
   if (c==='invtdel'){ INV.declaraciones.testigos.splice(+a[1],1); INV_SUCIA = true; invLocal(); return render(true); }
