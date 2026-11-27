@@ -542,6 +542,28 @@
   details.mas-info>summary::-webkit-details-marker{display:none}
   .paso-n{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--head);color:#fff;font-size:13px;font-weight:800;margin-right:8px}
   .sugred{margin-top:8px;padding:10px 12px;border-radius:10px;background:#EFF6FF;border:1px solid #BFDBFE;font-size:14px;color:#1E3A8A}
+
+  /* v31: investigación de accidentes */
+  .perito{border-left:5px solid var(--brand)}
+  .perito b svg.i{vertical-align:-4px;color:var(--brand)}
+  .guia{margin:10px 0 0;padding:0;list-style:none}
+  .guia li{position:relative;padding:8px 10px 8px 30px;border-radius:10px;margin-bottom:6px;font-size:14.5px;line-height:1.4;background:#F8FAFC;border:1px solid var(--line)}
+  .guia li::before{content:'';position:absolute;left:11px;top:14px;width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .guia li.crit{background:#FFF5F5;border-color:#FCA5A5;color:#7F1D1D} .guia li.crit::before{background:var(--int)}
+  .guia li.warn{background:#FFFBEB;border-color:#FCD34D;color:#78350F} .guia li.warn::before{background:var(--mod)}
+  .guia li.ok{background:#ECFDF5;border-color:#6EE7B7;color:#065F46} .guia li.ok::before{background:var(--tol)}
+  details.sec>summary{display:flex;align-items:center;gap:4px}
+  .sub2{font-weight:800;font-size:14.5px;color:var(--ink);margin:6px 0 4px}
+  .fotos-inv{display:flex;flex-direction:column;gap:6px}
+  .fi-it{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .fi-it .tx{flex:1;min-width:0} .fi-it .tx b{display:block;font-size:14px} .fi-it .tx span{display:block;font-size:12.5px;color:var(--muted)}
+  .fi-th{width:52px;height:52px;border-radius:10px;background:var(--act-soft);color:var(--brand);display:grid;place-items:center;flex:none}
+  .fi-img{width:52px;height:52px;border-radius:10px;object-fit:cover;flex:none}
+  .docinv{padding:10px 0;border-top:1px solid var(--line)} .docinv:first-of-type{border-top:0}
+  .hecho{padding:10px;border:1px solid var(--line);border-radius:12px;margin:8px 0;background:#fff}
+  .hecho .seg button{padding:8px 0;font-size:13px;min-height:38px}
+  .arbol-box{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff;padding:8px;margin:6px 0}
+  .arbol-box svg{display:block;max-width:none}
 </style>
 </head>
 <body>
@@ -570,6 +592,7 @@
 </div></nav>
 <input type="file" id="fotoEvid" accept="image/*" class="hidden">
 <input type="file" id="fotoInsp" accept="image/*" capture="environment" class="hidden">
+<input type="file" id="fotoInv" accept="image/*" capture="environment" class="hidden">
 
 <div class="overlay" id="busy" role="status" aria-live="polite"><div class="box"><div class="spin"></div><b id="busyTxt">Analizando…</b><div class="muted" id="busySub" style="margin-top:6px"></div>
   <div class="prog hidden" id="busyProg"><div class="pt"><i id="busyBar"></i></div><span id="busyPct">0%</span></div></div></div>
@@ -1848,7 +1871,7 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '30.0';
+var VERSION_APP = '31.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24, trazo 2, un solo estilo en toda la app; geometría al estilo Lucide). Un ícono = un concepto. */
@@ -1984,7 +2007,7 @@ var cfg = Object.assign({empresa:'', centro:'', respEjec:'', respSeg:'', aprobad
 var SRV = {catalogo:[], listas:{}, avisosActivos:false, version:0, usuario:null, logo:'', centros:[]};
 var CATMAP = {};
 var tab = 'centros', paso = 1, tabPrev = 'centros', filtroCentros = '', verCumplOk = false;
-var TABS_CENTRO = ['inicio','evaluar','matriz','medidas','personal','emitir','emitidos'];
+var TABS_CENTRO = ['inicio','evaluar','matriz','medidas','personal','emitir','emitidos','inv'];
 var borradores = cargarBorradores();
 var cur = null;
 var datos = {tareas:null, medidas:null, panel:null, usuarios:null, cumpl:null, personal:null, programa:null, insp:null};
@@ -2013,7 +2036,7 @@ function etiquetaCentro(nombre){ var c = centroInfo(nombre); return c ? c.nombre
 
 function elegirCentro(nombre){
   var c = centroInfo(nombre); cfg.centro = nombre; cfg.empresa = c ? c.razonSocial : cfg.empresa; save('iper_cfg', cfg);
-  datos = {tareas:null, medidas:null, panel:null, usuarios:datos.usuarios, cumpl:null, personal:null, programa:null, insp:null}; filtroMatriz = ''; INSP = null; INSP_FOTOS = {}; subMed = 'medidas'; selMatriz = null; BIBLIO = null; verCumplOk = false;
+  datos = {tareas:null, medidas:null, panel:null, usuarios:datos.usuarios, cumpl:null, personal:null, programa:null, insp:null}; filtroMatriz = ''; INSP = null; INSP_FOTOS = {}; subMed = 'medidas'; INV = null; INV_CTX = null; selMatriz = null; BIBLIO = null; verCumplOk = false;
   if (cur && !enEsteCentro(cur)) cur = null;
   cerrarSheet(); irA('inicio');
 }
@@ -2396,7 +2419,9 @@ function dictar(target, btn){
   rec.onresult = function(e){
     var txt = Array.from(e.results).map(function(r){return r[0].transcript;}).join(' ').trim();
     if (!txt) return;
-    var cuerpo = txt.charAt(0).toUpperCase()+txt.slice(1), prev = getCampo(target).trim();
+    var cuerpo = txt.charAt(0).toUpperCase()+txt.slice(1);
+    if (target.charAt(0)==='#'){ var ce = document.querySelector(target); if (ce){ ce.value = (ce.value.trim() ? ce.value.trim()+'. ' : '')+cuerpo; ce.dispatchEvent(new Event('input',{bubbles:true})); ce.dispatchEvent(new Event('change',{bubbles:true})); } return; }
+    var prev = getCampo(target).trim();
     setCampo(target, prev ? prev+'. '+cuerpo : cuerpo);
     var el = document.querySelector('[data-p="'+target+'"]'); if (el) el.value = getCampo(target);
     guardarBorrador();
@@ -2413,7 +2438,7 @@ function render(keepScroll){
   document.body.classList.toggle('con-nav', enCentro);
   document.querySelectorAll('nav button').forEach(function(b){ b.classList.toggle('on', b.dataset.tab===tab); });
   $('btnAjustes').classList.toggle('on', tab==='ajustes');
-  var r = tab==='acceso'?[renderAcceso(),'']:tab==='centros'?renderCentros():tab==='inicio'?renderInicio():tab==='evaluar'?renderNueva():tab==='matriz'?renderMatriz():tab==='medidas'?renderMedidas():tab==='personal'?renderPersonal():tab==='emitir'?renderEmitir():tab==='emitidos'?renderEmitidos():tab==='admin'?renderAdmin():[renderAjustes(),''];
+  var r = tab==='acceso'?[renderAcceso(),'']:tab==='centros'?renderCentros():tab==='inicio'?renderInicio():tab==='evaluar'?renderNueva():tab==='matriz'?renderMatriz():tab==='medidas'?renderMedidas():tab==='personal'?renderPersonal():tab==='emitir'?renderEmitir():tab==='emitidos'?renderEmitidos():tab==='inv'?renderInv():tab==='admin'?renderAdmin():[renderAjustes(),''];
   $('app').innerHTML = (enDemo() && tab!=='acceso' ? bannerDemo() : '') + r[0];
   $('barIn').innerHTML = r[1]; $('bar').classList.toggle('hidden', !r[1]);
   pintarCabecera(); pintarMenu();
@@ -2449,7 +2474,7 @@ function irA(t){
   if (t==='admin'){ datos.admin = null; run('adminCuentas').then(function(r){ datos.admin = r; if (tab==='admin') render(true); }).catch(function(e){ toast(e.message); }); }
   if (t==='evaluar' && !cur){ var l = listaBorradores().filter(enEsteCentro); if (l.length) { abrirBorrador(l[0].bid); return; } nuevaEvaluacion(); return; }
   tab=t;
-  if (t==='matriz') cargar('tareas'); if (t==='medidas'){ cargar('medidas'); if (subMed==='programa') cargar('programa'); if (subMed==='insp') cargar('insp'); } if (t==='inicio'){ cargar('panel'); cargar('cumpl'); cargar('medidas'); } if (t==='personal' || t==='emitir') cargar('personal'); if (t==='emitidos') cargar('docs');
+  if (t==='matriz') cargar('tareas'); if (t==='medidas'){ cargar('medidas'); if (subMed==='programa') cargar('programa'); if (subMed==='insp') cargar('insp'); } if (t==='inicio'){ cargar('panel'); cargar('cumpl'); cargar('medidas'); } if (t==='personal' || t==='emitir') cargar('personal'); if (t==='emitidos') cargar('docs'); if (t==='inv'){ if (!INV) cargar('inv'); if (!datos.personal) cargar('personal'); }
   if (t==='ajustes' && puede('admin') && modo()!=='gas' && !(SRV.usuario && SRV.usuario.tipo==='cuenta')) cargarUsuarios();
   render();
 }
@@ -2462,10 +2487,10 @@ function atras(){
 }
 function cargar(que){
   if (!cfg.centro || !online()) return;
-  var fn = {tareas:'listarTareas', medidas:'listarMedidas', panel:'panel', cumpl:'cumplimiento', personal:'listarPersonal', programa:'programaInfo', insp:'listarInspecciones', docs:'listarDocumentos'}[que];
+  var fn = {tareas:'listarTareas', medidas:'listarMedidas', panel:'panel', cumpl:'cumplimiento', personal:'listarPersonal', programa:'programaInfo', insp:'listarInspecciones', docs:'listarDocumentos', inv:'listarInvestigaciones'}[que];
   datos[que] = null;
-  run(fn, cfg.centro).then(function(d){ datos[que]=d; if ((que==='tareas'&&tab==='matriz')||(que==='medidas'&&tab==='medidas')||((que==='panel'||que==='cumpl')&&tab==='inicio')||(que==='personal'&&tab==='personal')||((que==='programa'||que==='insp')&&tab==='medidas')||(que==='personal'&&tab==='emitir')||(que==='docs'&&tab==='emitidos')||(que==='medidas'&&tab==='inicio')) render(true); })
-    .catch(function(e){ datos[que]=(que==='panel'||que==='cumpl'||que==='programa')?{error:true}:que==='personal'?{puestos:[],personas:[]}:[]; if (!e.sinRed && !e.sesion) toast(e.message); render(true); });
+  run(fn, cfg.centro).then(function(d){ datos[que]=d; if ((que==='tareas'&&tab==='matriz')||(que==='medidas'&&tab==='medidas')||((que==='panel'||que==='cumpl')&&tab==='inicio')||(que==='personal'&&tab==='personal')||((que==='programa'||que==='insp')&&tab==='medidas')||(que==='personal'&&tab==='emitir')||(que==='docs'&&tab==='emitidos')||(que==='inv'&&tab==='inv')||(que==='personal'&&tab==='inv')||(que==='medidas'&&tab==='inicio')) render(true); })
+    .catch(function(e){ datos[que]=(que==='panel'||que==='cumpl'||que==='programa'||que==='inv')?{error:true}:que==='personal'?{puestos:[],personas:[]}:[]; if (!e.sinRed && !e.sesion) toast(e.message); render(true); });
 }
 
 
@@ -3098,6 +3123,7 @@ function nuevoRegistro(){
     '<button class="li" data-g="nr:evaluar">'+ico('evaluar')+'<span class="tx"><b>Evaluar un puesto</b><span>Identificación de peligros y evaluación con IA</span></span></button>'+
     '<button class="li" data-g="nr:insp">'+ico('inspeccion')+'<span class="tx"><b>Inspección en terreno</b><span>Lista de verificación con fotos</span></span></button>'+
     '<button class="li" data-g="nr:obs">'+ico('ojo')+'<span class="tx"><b>Observación de conducta</b><span>Conductas seguras y riesgosas por puesto</span></span></button>'+
+    '<button class="li" data-g="nr:inv">'+ico('accidente')+'<span class="tx"><b>Investigar un accidente</b><span>Antecedentes, fotos, declaraciones y árbol de causas</span></span></button>'+
     '<button class="li" data-g="nr:emitir">'+ico('emitir')+'<span class="tx"><b>Emitir documento</b><span>IRL, reglamento interno, PTS o EPP</span></span></button>'+
     '<button class="li" data-g="nr:persona">'+ico('personas')+'<span class="tx"><b>Agregar persona trabajadora</b><span>Nombre, RUT, puesto e ingreso</span></span></button></div>');
 }
@@ -3473,7 +3499,7 @@ function evaluarProgramaUI(){
     lab('Medidas de mejora continua', 'Sugeridas desde los indicadores. Desmarca las que no correspondan y agrega otras.')+
     M.map(function(m,i){ return '<label class="chk" style="margin-top:6px"><input type="checkbox" class="evM" checked value="'+esc(m)+'"> '+esc(m)+'</label>'; }).join('')+
     lab('Otras medidas de mejora (una por línea)')+'<textarea id="evO" rows="2"></textarea>'+
-    lab('Conclusiones (opcional)', 'Si lo dejas en blanco, se redactan desde los indicadores.')+micBtn('evC')+'<textarea id="evC" rows="3"></textarea>'+
+    lab('Conclusiones (opcional)', 'Si lo dejas en blanco, se redactan desde los indicadores.')+micBtn('#evC')+'<textarea id="evC" rows="3"></textarea>'+
     '<label class="chk" style="margin-top:12px"><input type="checkbox" id="evMail"> Enviar también a mi correo</label>'+
     '<div style="height:12px"></div><button class="btn" id="evOk">Generar evaluación (PDF y Word)</button>');
   $('evOk').onclick = function(){
@@ -3622,7 +3648,7 @@ function manejarGestion(e){
   if (c==='ininsp'){ subMed = 'insp'; return irA('medidas'); }
   if (c==='nuevoreg') return nuevoRegistro();
   if (c==='nr'){ cerrarSheet(); var k0 = a[1];
-    if (k0==='evaluar') return irA('evaluar'); if (k0==='emitir') return irA('emitir'); if (k0==='persona'){ irA('personal'); return setTimeout(function(){ abrirTrabajador(null); }, 300); }
+    if (k0==='evaluar') return irA('evaluar'); if (k0==='inv'){ irA('inv'); return setTimeout(function(){ if (!INV) invNueva(); }, 200); } if (k0==='emitir') return irA('emitir'); if (k0==='persona'){ irA('personal'); return setTimeout(function(){ abrirTrabajador(null); }, 300); }
     subMed = k0; irA('medidas'); return setTimeout(function(){ k0==='insp' ? nuevaInspeccion() : nuevaObservacion(); }, 300); }
   if (c==='tm') return menuTarea(a[1]);
   if (c==='md') return menuMedida(a[1]);
@@ -5005,7 +5031,7 @@ function probarConexion(){
   busy(true,'Probando conexión…');
   run('getConfig').then(function(c){
     busy(false); aplicarConfig(c);
-    if (!c.version || c.version<30) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
+    if (!c.version || c.version<31) toast('Conectado, pero el servidor es una versión anterior. Actualiza Código.gs.', 7000);
     else toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').');
     render(true);
   }).catch(function(e){ busy(false); toast(e.message); });
@@ -5162,6 +5188,7 @@ var MENU = [
   ['Riesgos', [['evaluar','evaluar','Evaluar puesto'], ['matriz','matriz','Matriz IPER']]],
   ['Planificación', [['programa','programa','Programa de trabajo'], ['medidas','medidas','Medidas y plazos']]],
   ['Terreno', [['insp','inspeccion','Inspecciones'], ['obs','ojo','Observaciones de conducta']]],
+  ['Accidentes', [['inv','accidente','Investigación de accidentes']]],
   ['Personas', [['personal','personas','Nómina'], ['emitir','emitir','Emitir documentos']]],
   ['Documentos', [['emitidos','docs','Documentos emitidos']]]
 ];
@@ -5196,7 +5223,7 @@ function irModulo(k){
   if (k==='admin'){ irA('admin'); return; }
   if (k==='ficha'){ abrirCentro(cfg.centro); return; }
   if (k==='resumen') return irA('inicio');
-  if (k==='evaluar' || k==='matriz' || k==='personal' || k==='emitir' || k==='emitidos') return irA(k);
+  if (k==='evaluar' || k==='matriz' || k==='personal' || k==='emitir' || k==='emitidos' || k==='inv') return irA(k);
   subMed = {programa:'programa', medidas:'medidas', insp:'insp', obs:'obs'}[k] || 'medidas';
   irA('medidas');
 }
@@ -5206,6 +5233,397 @@ document.addEventListener('click', function(e){
   if (e.target.id==='sideVelo') cerrarMenu();
 });
 document.addEventListener('keydown', function(e){ if (e.key==='Escape' && document.body.classList.contains('menu-on')) cerrarMenu(); });
+
+/* ======================= v31: Investigación de accidentes (árbol de causas, perito IA) ======================= */
+var INV = null, INV_CTX = null, INV_ABIERTA = {}, INV_SUCIA = false, INV_T = null;
+var FOTO_CATS = [['Vista general del lugar','Desde lejos, que se vea el entorno completo, antes de mover nada.'],['Punto exacto del accidente','Donde ocurrió la lesión, con una referencia de tamaño.'],
+  ['Agente o elemento de la lesión','Máquina, herramienta, material o superficie que causó la lesión.'],['Superficie o condición del entorno','Piso, iluminación, orden, señalización, desniveles.'],
+  ['EPP que usaba','Estado de los elementos de protección personal.'],['Reconstitución de la postura','Otra persona reproduce la postura o el movimiento, sin riesgo.'],
+  ['Zona lesionada','Solo con consentimiento escrito de la persona; nunca el rostro.'],['Documento o registro','PTS, registro de capacitación, mantención, permiso de trabajo.'],['Otra evidencia','']];
+var DOC_INV = ['Información de los riesgos laborales (IRL) entregada','Reglamento interno entregado','Difusión del PTS de la tarea','Entrega de EPP registrada',
+  'Riesgo identificado en la matriz para la tarea','Medidas de la matriz implementadas','Capacitación específica en la tarea','Mantención de máquinas, equipos o herramientas',
+  'Análisis seguro o permiso de trabajo (si corresponde)','Supervisión de la tarea al momento del accidente','Inspecciones previas del área'];
+var PREG_INV = {
+  accidentado:['¿Qué estaba haciendo en el momento del accidente?','¿Qué ocurrió justo antes? Descríbalo paso a paso.','¿Es la forma habitual de hacer esta tarea? ¿Quién le enseñó?','¿Qué elementos de protección usaba?','¿Había algo distinto ese día (equipo, material, apuro, compañeros)?'],
+  testigos:['¿Dónde estaba usted y qué hacía?','¿Qué vio y qué escuchó?','¿Qué hizo después del accidente?','¿Había ocurrido antes algo parecido?'],
+  jefatura:['¿Quién asignó la tarea y con qué instrucciones?','¿Existe un procedimiento escrito para esta tarea? ¿Se difundió?','¿Hubo cambios recientes de personal, equipos, materiales o turnos?','¿Cómo se supervisa esta tarea?']
+};
+function invVacia(){ return {id:null, inicio:hoyIso(), primeras:{}, accidentado:{}, evento:{tipo:'Del trabajo', gravedad:'Leve', calificacion:'En proceso de calificación'}, sitio:{}, declaraciones:{testigos:[]}, documental:{items:DOC_INV.map(function(t){ return {txt:t, res:'', obs:''}; })}, firmas:{}, fotos:[]}; }
+function invGet(path){ var o = INV; path.split('.').forEach(function(k){ o = o==null ? undefined : o[k]; }); return o; }
+function invSet(path, v){ var a = path.split('.'), o = INV; for (var i=0;i<a.length-1;i++){ if (o[a[i]]==null) o[a[i]] = /^\d+$/.test(a[i+1]) ? [] : {}; o = o[a[i]]; } o[a[a.length-1]] = v; INV_SUCIA = true; invLocal(); }
+function invLocal(){ try{ localStorage.setItem('inv:'+idC(cfg.centro)+':'+(INV.id||'nueva'), JSON.stringify(INV)); }catch(e){} }
+function edadDe(fn, ref){ if (!fn) return ''; var a = new Date(fn+'T12:00:00'), b = ref ? new Date(ref+'T12:00:00') : new Date(); var e = b.getFullYear()-a.getFullYear(); if (b.getMonth()<a.getMonth() || (b.getMonth()===a.getMonth() && b.getDate()<a.getDate())) e--; return e>0 && e<100 ? e : ''; }
+function antiguedadDe(fi, ref){ if (!fi) return ''; var a = new Date(fi+'T12:00:00'), b = ref ? new Date(ref+'T12:00:00') : new Date(); var m = (b.getFullYear()-a.getFullYear())*12 + b.getMonth()-a.getMonth(); if (b.getDate()<a.getDate()) m--; if (m<0) return '';
+  var y = Math.floor(m/12), r = m%12; return (y? y+(y===1?' año':' años'):'')+(y&&r?' y ':'')+(r? r+(r===1?' mes':' meses'):'')||'menos de 1 mes'; }
+
+/* ---------- Lista ---------- */
+function renderInv(){
+  if (!cfg.centro) return [sinCentro(),''];
+  if (INV) return renderInvEditor();
+  if (!online()) return [sinConexionMsg(),''];
+  var L = datos.inv, h = '<div class="cab"><div><h2>Investigación de accidentes</h2><div class="muted">Método del árbol de causas. Tú reúnes antecedentes y fotos; la IA te orienta como perito y arma el análisis.</div></div></div>';
+  if (!L) return [h+cargando(),''];
+  if (L.error) return [h+'<div class="empty">No se pudo cargar la lista.</div>',''];
+  var bar = puede('evaluador') ? '<button class="btn" data-g="invnueva">'+ico('accidente')+'Nueva investigación</button>' : '';
+  if (!L.length) return [h+'<div class="empty">Aún no hay investigaciones en esta instalación.</div>', bar];
+  h += '<div class="filas">'+L.map(function(x){
+    var est = x.estado==='Cerrada' ? bdg('ok sm','Cerrada') : x.pdf ? bdg('blue sm','Informe v'+x.version) : x.analizada ? bdg('warn sm','Analizada') : bdg('neu sm','En curso');
+    return '<div class="fila" data-g="invabrir:'+x.id+'"><span class="nv '+(x.gravedad==='Fatal'||x.gravedad==='Grave'?'Intolerable':'Importante')+'"></span><span class="tx"><b>'+esc(x.persona||'Persona sin indicar')+'</b>'+
+      '<span class="m">'+(x.fecha?fIso(x.fecha):'Sin fecha')+(x.puesto?' · '+esc(x.puesto):'')+(x.lugar?' · '+esc(x.lugar):'')+'</span><span class="e">'+est+(x.gravedad?bdg((x.gravedad==='Leve'?'neu':'crit')+' sm', x.gravedad):'')+'<span class="muted" style="font-size:12.5px">'+x.fotos+' foto(s)</span></span></span>'+
+      '<span class="chev" style="margin-right:12px">'+ico('chev')+'</span></div>'; }).join('')+'</div>';
+  return [h, bar];
+}
+function invNueva(){
+  var b = null; try{ b = JSON.parse(localStorage.getItem('inv:'+idC(cfg.centro)+':nueva')||'null'); }catch(e){}
+  INV = b || invVacia(); INV_CTX = null; INV_ABIERTA = {primeras:true}; INV_SUCIA = !!b;
+  if (!datos.personal) cargar('personal');
+  render(); if (b) toast('Se recuperó la investigación que estabas llenando.');
+}
+function invAbrir(id){
+  busy(true,'Abriendo la investigación…');
+  run('obtenerInvestigacion', id).then(function(j){
+    busy(false); var loc = null; try{ loc = JSON.parse(localStorage.getItem('inv:'+idC(cfg.centro)+':'+id)||'null'); }catch(e){}
+    INV = j; if (!INV.documental || !(INV.documental.items||[]).length) INV.documental = invVacia().documental;
+    if (loc && loc._sucia){ INV = Object.assign(j, loc, {fotos:j.fotos, pdf:j.pdf, version:j.version, estado:j.estado}); INV_SUCIA = true; toast('Había cambios sin guardar en este teléfono: se recuperaron.'); } else INV_SUCIA = false;
+    INV_ABIERTA = {}; INV_CTX = null; if (!datos.personal) cargar('personal'); invCargarCtx(); render();
+  }).catch(function(e){ busy(false); toast(e.message); });
+}
+function invCargarCtx(){
+  var a = INV.accidentado||{}; if (!a.trabajadorId && !a.cargo) return;
+  run('contextoInvestigacion', cfg.centro, a.trabajadorId||'', a.cargo||'').then(function(c){ INV_CTX = c; invAutoDocumental(); if (tab==='inv' && INV) render(true); }).catch(function(){});
+}
+/** Lo que la app ya sabe de la persona y del puesto se marca solo en la revisión documental (editable). */
+function invAutoDocumental(){
+  if (!INV_CTX || !INV.documental) return; var C = INV_CTX, it = INV.documental.items, set = function(i, res, obs){ var x = it[i]; if (x && !x.manual){ x.res = res; x.obs = obs; x.auto = true; } };
+  if (C.persona){
+    set(0, C.documentos.irl?'Sí':'No', C.documentos.irl?'Registrada en la app el '+fecha(C.documentos.irl):'Sin registro en la app');
+    set(1, C.documentos.ri?'Sí':'No', C.documentos.ri?'Registrada el '+fecha(C.documentos.ri):'Sin registro en la app');
+    var caps = Object.keys(C.documentos.cap||{}); set(2, caps.length?'Sí':'No', caps.length?'Difundidos: '+caps.join(', '):'Sin difusión de PTS registrada'+(C.pts.length?' (PTS del puesto: '+C.pts.join(', ')+')':''));
+    set(3, C.documentos.epp?'Sí':'No', C.documentos.epp?'Registrada el '+fecha(C.documentos.epp):'Sin registro en la app');
+  }
+  if (C.riesgos.length && !it[4].manual) it[4].obs = it[4].obs || 'Riesgos del puesto en la matriz: '+unicosTxt(C.riesgos.map(function(r){ return r.riesgo; })).slice(0,6).join('; ');
+  if (C.medidasPuesto.length){ var ver = C.medidasPuesto.filter(function(m){ return m.estado==='Verificada'; }).length; set(5, ver===C.medidasPuesto.length?'Sí':'No', ver+' de '+C.medidasPuesto.length+' medidas del puesto verificadas'); }
+}
+
+/* ---------- Guía del perito (siempre visible) ---------- */
+function guiaInv(){
+  var X = INV, e = X.evento||{}, p = X.primeras||{}, d = X.declaraciones||{}, f = X.fotos||[], out = [];
+  var grave = e.gravedad==='Grave' || e.gravedad==='Fatal';
+  if (grave){
+    if (!p.suspension) out.push(['crit','Suspende de inmediato la faena afectada y, si es necesario, evacúa. Solo la Inspección del Trabajo o la SEREMI de Salud autorizan reanudar.']);
+    if (!p.avisoIT || !p.avisoSeremi) out.push(['crit','Informa de inmediato a la Inspección del Trabajo y a la SEREMI de Salud del lugar del accidente, y marca la DIAT como accidente grave o fatal.']);
+    out.push(['info','En accidentes graves o fatales investiga el Comité Paritario con la asesoría del organismo administrador, que también hace su propia investigación.']);
+  }
+  if (!p.diat) out.push(['warn','Envía la denuncia (DIAT) al organismo administrador dentro de 24 horas y anota su número.']);
+  if (!f.length) out.push(['warn','Ve al sitio lo antes posible, antes de que cambien las condiciones. Fotografía primero sin mover nada: vista general, punto exacto y agente de la lesión.']);
+  else { var cats = f.map(function(x){ return x.cat; }); ['Vista general del lugar','Punto exacto del accidente','Agente o elemento de la lesión'].forEach(function(c){ if (cats.indexOf(c)<0) out.push(['warn','Falta la fotografía: '+c.toLowerCase()+'.']); }); }
+  if (!d.accidentado) out.push(['warn','Toma la declaración de la persona accidentada, en sus palabras y por escrito, en un lugar tranquilo. Usa preguntas abiertas y no conducentes.']);
+  if (!(d.testigos||[]).some(function(t){ return t && t.declaracion; })) out.push(['info','Identifica a los testigos (quienes vieron o estaban cerca) y toma su declaración por separado.']);
+  if (!d.jefatura) out.push(['info','Entrevista a la jefatura directa: quién asignó la tarea, con qué instrucciones y cómo se supervisa.']);
+  if ((X.documental.items||[]).some(function(i){ return !i.res; })) out.push(['info','Completa la revisión documental: lo que la app ya sabe aparece marcado.']);
+  out.push(['info','Anota hechos comprobados. Separa los hechos de las interpretaciones ("estaba distraído") y de los juicios de valor ("fue descuidado").']);
+  if (e.fecha && (e.lesion||e.diagnostico) && (d.accidentado || (X.sitio||{}).observaciones)) out.push(['ok','Ya hay antecedentes mínimos para el análisis del árbol de causas.']);
+  return out;
+}
+
+/* ---------- Editor ---------- */
+function invSec(k, n, titulo, estado, cuerpo){
+  var ab = !!INV_ABIERTA[k];
+  return '<details class="sec"'+(ab?' open':'')+' data-invsec="'+k+'"><summary><span class="paso-n">'+n+'</span><span style="flex:1">'+titulo+'</span>'+(estado?'<span class="muted" style="font-size:13px;margin-right:8px">'+estado+'</span>':'')+'</summary><div class="cu">'+cuerpo+'</div></details>';
+}
+function iTxt(path, et, ph, extra){ return lab(et)+'<input type="text" data-iv="'+path+'" value="'+esc(invGet(path)||'')+'" placeholder="'+esc(ph||'')+'"'+(extra||'')+'>'; }
+function iFec(path, et){ return lab(et)+'<input type="date" data-iv="'+path+'" value="'+esc(invGet(path)||'')+'">'; }
+function iArea(path, et, ph, filas, ayudaTxt){ var id = 'iv_'+path.replace(/\./g,'_'); return '<label class="lbl"><span>'+et+(ayudaTxt?ayuda(ayudaTxt):'')+'</span>'+micBtn('#'+id)+'</label><textarea id="'+id+'" data-iv="'+path+'" rows="'+(filas||3)+'" placeholder="'+esc(ph||'')+'">'+esc(invGet(path)||'')+'</textarea>'; }
+function iSeg(path, et, ops){ var v = invGet(path)||''; return lab(et)+'<div class="seg">'+ops.map(function(o){ return '<button type="button" data-g="ivseg:'+path+':'+o+'" class="'+(v===o?'on':'')+'">'+o+'</button>'; }).join('')+'</div>'; }
+function iChk(path, txt){ return '<label class="chk" style="margin-top:6px"><input type="checkbox" data-iv="'+path+'"'+(invGet(path)?' checked':'')+'> '+txt+'</label>'; }
+function preguntasHtml(tipo){
+  var ia = ((INV.orientacion||{}).preguntas||{})[tipo] || [], base = PREG_INV[tipo] || [];
+  return '<details class="mas-info"><summary>Preguntas sugeridas'+(ia.length?' (incluye las del perito IA)':'')+'</summary><ul style="margin:0 0 8px 18px;padding:0;font-size:14px">'+
+    ia.map(function(q){ return '<li style="margin-bottom:4px"><b>'+esc(q)+'</b></li>'; }).join('')+base.map(function(q){ return '<li style="margin-bottom:4px">'+esc(q)+'</li>'; }).join('')+'</ul></details>';
+}
+function renderInvEditor(){
+  var X = INV, e = X.evento, a = X.accidentado, p = X.primeras, d = X.declaraciones, s = X.sitio||{}, A = X.analisis, ed = puede('evaluador');
+  var h = '<div class="cab"><div><h2>Investigación de accidente</h2><div class="muted">'+(a.nombre?esc(a.nombre)+' · ':'')+(e.fecha?fIso(e.fecha):'Fecha por indicar')+(X.id?'':' · sin guardar en el servidor')+'</div></div>'+
+    (X.estado==='Cerrada'?bdg('ok','Cerrada'):'')+'</div>';
+  // Guía del perito
+  var G = guiaInv(), O = X.orientacion;
+  h += '<div class="card perito"><div class="lbl"><span><b style="font-size:16px">'+ico('escudo')+' Guía del perito</b></span></div>'+
+    '<ul class="guia">'+G.slice(0,3).map(function(g){ return '<li class="'+g[0]+'">'+esc(g[1])+'</li>'; }).join('')+'</ul>'+
+    (G.length>3?'<details class="mas-info"><summary>Ver '+(G.length-3)+' indicación(es) más</summary><ul class="guia" style="margin-top:0">'+G.slice(3).map(function(g){ return '<li class="'+g[0]+'">'+esc(g[1])+'</li>'; }).join('')+'</ul></details>':'')+
+    (O ? '<details class="mas-info" open><summary>Orientación de la IA ('+fecha(O.fecha)+')</summary>'+(O.etapa?'<p style="margin:0 0 6px"><b>'+esc(O.etapa)+'</b></p>':'')+
+      [['Siguientes pasos', O.siguientes], ['Fotos o mediciones que faltan', O.fotos], ['Documentos para revisar', O.documentos], ['Inconsistencias o vacíos', O.inconsistencias], ['Alertas', O.alertas]].filter(function(x){ return (x[1]||[]).length; })
+        .map(function(x){ return '<div style="font-weight:800;font-size:13.5px;margin-top:6px">'+x[0]+'</div><ul style="margin:2px 0 4px 18px;padding:0;font-size:14px">'+x[1].map(function(t){ return '<li>'+esc(t)+'</li>'; }).join('')+'</ul>'; }).join('')+'</details>' : '')+
+    (ed?'<button class="btn sec" style="margin-top:8px" data-g="invorienta">'+ico('ia')+(O?'Pedir nueva orientación al perito IA':'Pedir orientación al perito IA')+'</button>':'')+'</div>';
+  // 1. Primeras acciones
+  var grave = e.gravedad==='Grave' || e.gravedad==='Fatal';
+  h += invSec('primeras', 1, 'Gravedad y primeras acciones', (e.gravedad||'')+(p.diat?' · DIAT '+esc(p.diat):''),
+    iSeg('evento.gravedad','Clasificación según gravedad',['Leve','Grave','Fatal'])+
+    '<p class="muted" style="font-size:13px;margin:6px 0 0">Grave: amputación o pérdida de una parte del cuerpo, maniobras de reanimación o de rescate, caída de más de 1,8 m, condiciones hiperbáricas, o tantas personas afectadas que se altera la faena.</p>'+
+    iSeg('evento.tipo','Tipo',['Del trabajo','De trayecto'])+
+    '<div class="grid2"><div>'+iTxt('primeras.diat','N° de DIAT','Número de la denuncia')+'</div><div>'+iFec('primeras.diatFecha','Fecha de la DIAT')+'</div></div>'+
+    iChk('primeras.atencion','Persona derivada al organismo administrador')+iChk('primeras.sitioResguardado','Sitio del suceso resguardado (sin mover nada)')+iChk('primeras.cphs','Comité Paritario o Delegado informado')+
+    (grave ? iChk('primeras.suspension','Faena afectada suspendida')+iChk('primeras.avisoIT','Aviso inmediato a la Inspección del Trabajo')+iChk('primeras.avisoSeremi','Aviso inmediato a la SEREMI de Salud') : '')+
+    iArea('primeras.notas','Notas de las primeras acciones','Hora del aviso, quién atendió, traslado, etc.',2));
+  // 2. Persona
+  var D = datos.personal, opP = D ? D.personas : [];
+  h += invSec('persona', 2, 'Persona accidentada', a.nombre ? esc(a.nombre) : 'Por completar',
+    lab('Elegir de la nómina')+'<select id="ivPers"><option value="">'+(D?'Elige una persona…':'Cargando nómina…')+'</option>'+opP.map(function(x){ return '<option value="'+x.id+'"'+(a.trabajadorId===x.id?' selected':'')+'>'+esc(x.nombre)+' · '+esc(x.puesto)+'</option>'; }).join('')+'</select>'+
+    '<div class="grid2"><div>'+iTxt('accidentado.nombre','Nombre')+'</div><div>'+iTxt('accidentado.rut','RUT')+'</div></div>'+
+    '<div class="grid2"><div>'+iTxt('accidentado.cargo','Cargo o puesto')+'</div><div>'+iFec('accidentado.fechaNacimiento','Fecha de nacimiento')+'</div></div>'+
+    '<div class="grid2"><div>'+iFec('accidentado.fechaContrato','Fecha de ingreso')+'</div><div>'+lab('Tipo de contrato')+'<select data-iv="accidentado.tipoContrato">'+['','Indefinido','Plazo fijo','Por obra o faena','Honorarios','Servicios transitorios'].map(function(o){ return '<option'+((a.tipoContrato||'')===o?' selected':'')+'>'+o+'</option>'; }).join('')+'</select></div></div>'+
+    '<div class="grid2"><div>'+iTxt('accidentado.jornada','Jornada y turno','Ej.: diurna, 8:00 a 17:00')+'</div><div>'+iTxt('accidentado.horasPrevias','Horas trabajadas antes del accidente','Ej.: 6 horas')+'</div></div>'+
+    '<p class="muted" style="font-size:13px">Edad: <b>'+(a.edad?a.edad+' años':'—')+'</b> · Antigüedad en el cargo: <b>'+(a.antiguedad||'—')+'</b> (se calculan solas).</p>');
+  // 3. Accidente
+  var tareas = INV_CTX ? INV_CTX.tareas : [];
+  h += invSec('evento', 3, 'El accidente', e.fecha ? fIso(e.fecha)+(e.hora?' '+esc(e.hora):'') : 'Por completar',
+    '<div class="grid2"><div>'+iFec('evento.fecha','Fecha')+'</div><div>'+lab('Hora')+'<input type="time" data-iv="evento.hora" value="'+esc(e.hora||'')+'"></div></div>'+
+    iTxt('evento.lugar','Lugar específico','Ej.: sala 401, cuarto piso')+
+    (tareas.length ? lab('Tarea de la matriz que realizaba')+'<select id="ivTarea"><option value="">Otra tarea (escribir abajo)</option>'+tareas.map(function(t){ return '<option value="'+t.id+'"'+(X.tareaId===t.id?' selected':'')+'>'+esc(t.tarea)+'</option>'; }).join('')+'</select>' : '')+
+    iTxt('evento.tarea','Tarea que realizaba','Qué hacía exactamente')+
+    '<div class="grid2"><div>'+iTxt('evento.lesion','Tipo de lesión','Contusión, corte, fractura…')+'</div><div>'+iTxt('evento.parte','Parte del cuerpo','Rodilla izquierda…')+'</div></div>'+
+    iTxt('evento.agente','Agente o elemento de la lesión','Piso, herramienta, máquina, carga…')+
+    iTxt('evento.diagnostico','Diagnóstico del organismo administrador (si lo tienes)','')+
+    '<div class="grid2"><div>'+iTxt('evento.reposo','Días de reposo','Si se conoce')+'</div><div>'+lab('Calificación')+'<select data-iv="evento.calificacion">'+['En proceso de calificación','Accidente del trabajo','Accidente de trayecto','De origen común'].map(function(o){ return '<option'+((e.calificacion||'')===o?' selected':'')+'>'+o+'</option>'; }).join('')+'</select></div></div>');
+  // 4. Sitio y fotos
+  var fotos = X.fotos||[], pend = INV_FOTOS_PEND.filter(function(f){ return f.inv===(X.id||'nueva'); });
+  h += invSec('sitio', 4, 'Sitio del suceso y fotografías', (fotos.length+pend.length)+' foto(s)',
+    iArea('sitio.observaciones','Observaciones del sitio','Describe lo que ves, sin interpretar: disposición, superficie, iluminación, orden, señalización, máquinas, distancias.',4,'Usa todos los sentidos: olores, temperatura, ruido. Mide distancias y alturas relevantes.')+
+    iTxt('sitio.condiciones','Condiciones ambientales','Iluminación, temperatura, lluvia, ruido…')+iTxt('sitio.epp','EPP que usaba la persona','Y su estado')+
+    '<div class="sec-t" style="margin-top:14px">Fotografías</div>'+
+    (fotos.length||pend.length ? '<div class="fotos-inv">'+fotos.map(function(f){ return '<div class="fi-it"><a href="'+esc(f.url)+'" target="_blank" rel="noopener" class="fi-th">'+ico('foto')+'</a><div class="tx"><b>'+esc(f.cat)+'</b><span>'+esc(f.desc||'')+'</span></div>'+(ed?'<button class="x" data-g="invfq:'+f.fileId+'" aria-label="Quitar foto">×</button>':'')+'</div>'; }).join('')+
+      pend.map(function(f){ return '<div class="fi-it"><img src="'+f.thumb+'" class="fi-img" alt=""><div class="tx"><b>'+esc(f.cat)+'</b><span>'+esc(f.desc||'')+' · pendiente de subir</span></div></div>'; }).join('')+'</div>' : '<p class="muted">Sin fotografías.</p>')+
+    (ed?'<div class="list" style="margin-top:8px">'+FOTO_CATS.map(function(c,i){ var n = fotos.filter(function(f){ return f.cat===c[0]; }).length;
+      return '<button class="li" data-g="invfoto:'+i+'"><span class="ok-i '+(n?'si':'no')+'">'+ico(n?'ok':'foto')+'</span><span class="tx"><b class="wrap">'+c[0]+(n?' ('+n+')':'')+'</b><span>'+esc(c[1])+'</span></span>'+ico('mas')+'</button>'; }).join('')+'</div>':''));
+  // 5. Declaraciones
+  var tes = d.testigos||[];
+  h += invSec('decl', 5, 'Declaraciones', [d.accidentado?'accidentada':'', tes.filter(function(t){ return t&&t.declaracion; }).length?tes.length+' testigo(s)':'', d.jefatura?'jefatura':''].filter(String).join(' · ')||'Por tomar',
+    '<div class="sub2">Persona accidentada</div>'+preguntasHtml('accidentado')+iArea('declaraciones.accidentado','Declaración (en sus palabras, primera persona)','Yo… declaro que el día…',5,'Escribe lo que dice la persona, sin corregir ni resumir. Puedes dictar.')+
+    '<div class="sub2" style="margin-top:14px">Testigos</div>'+preguntasHtml('testigos')+
+    tes.map(function(t,k){ return '<div class="card" style="padding:12px;margin:8px 0"><div class="lbl"><b>Testigo '+(k+1)+'</b><button class="x" data-g="invtdel:'+k+'" aria-label="Quitar testigo">×</button></div>'+
+      '<div class="grid2"><div>'+iTxt('declaraciones.testigos.'+k+'.nombre','Nombre')+'</div><div>'+iTxt('declaraciones.testigos.'+k+'.cargo','Cargo')+'</div></div>'+
+      iArea('declaraciones.testigos.'+k+'.declaracion','Declaración','Lo que vio y escuchó',3)+'</div>'; }).join('')+
+    (ed?'<button class="btn sec" data-g="invtadd">'+ico('mas')+'Agregar testigo</button>':'')+
+    '<div class="sub2" style="margin-top:14px">Jefatura directa</div>'+preguntasHtml('jefatura')+
+    '<div class="grid2"><div>'+iTxt('declaraciones.jefaturaNombre','Nombre')+'</div><div>'+iTxt('declaraciones.jefaturaCargo','Cargo')+'</div></div>'+iArea('declaraciones.jefatura','Declaración de la jefatura','',3));
+  // 6. Revisión documental
+  var it = X.documental.items||[], hechos = it.filter(function(i){ return i.res; }).length;
+  h += invSec('doc', 6, 'Revisión documental', hechos+' de '+it.length,
+    '<p class="muted" style="margin-top:0;font-size:13.5px">'+(INV_CTX&&INV_CTX.persona?'Lo marcado con <b>app</b> viene de los registros de la app; puedes cambiarlo.':'Elige a la persona de la nómina para completar lo que la app ya sabe.')+'</p>'+
+    it.map(function(i,k){ return '<div class="docinv"><div class="lbl"><b style="font-size:14.5px">'+esc(i.txt)+'</b>'+(i.auto&&!i.manual?'<span class="bdg blue sm">app</span>':'')+'</div>'+
+      '<div class="seg">'+['Sí','No','No aplica'].map(function(o){ return '<button type="button" data-g="ivdoc:'+k+':'+o+'" class="'+(i.res===o?'on '+(o==='Sí'?'r-ok':o==='No'?'r-mal':'r-na'):'')+'">'+o+'</button>'; }).join('')+'</div>'+
+      '<input type="text" data-iv="documental.items.'+k+'.obs" value="'+esc(i.obs||'')+'" placeholder="Observación" style="margin-top:6px"></div>'; }).join(''));
+  // 7. Análisis
+  var listo = e.fecha && (e.lesion||e.diagnostico) && (d.accidentado || s.observaciones);
+  h += invSec('analisis', 7, 'Análisis: árbol de causas', A&&A.hechos ? A.hechos.length+' hechos' : 'Pendiente',
+    (A&&A.hechos ? invAnalisisHtml(A) : '<p class="muted" style="margin-top:0">La IA actúa como perito: arma el relato objetivo, lista los hechos, construye el árbol de causas, clasifica las causas según la matriz de la Guía técnica, revisa la consistencia entre el mecanismo y las lesiones y propone medidas. Tú lo revisas y ajustas.</p>')+
+    (ed?'<button class="btn'+(A&&A.hechos?' sec':'')+'" data-g="invanaliza"'+(listo?'':' disabled')+'>'+ico('ia')+(A&&A.hechos?'Volver a analizar con la IA':'Analizar con el perito IA')+'</button>'+(listo?'':'<p class="muted" style="font-size:13px">Faltan: fecha, lesión y la declaración o las observaciones del sitio.</p>'):''));
+  // 8. Informe
+  var F = X.firmas||{};
+  h += invSec('informe', 8, 'Informe y firmas', X.pdf ? 'Versión '+X.version : 'Pendiente',
+    '<div class="grid2"><div>'+iFec('inicio','Inicio de la investigación')+'</div><div>'+iFec('termino','Término de la investigación')+'</div></div>'+
+    '<div class="grid2"><div>'+iTxt('firmas.cphsNombre','Firma Comité Paritario / Delegado','Nombre')+'</div><div>'+iTxt('firmas.cphsCargo','Cargo en el Comité','Ej.: Presidente')+'</div></div>'+
+    '<p class="muted" style="font-size:13px">Firman a mano: quien investiga (tú), el Comité Paritario o Delegado y la jefatura directa.</p>'+
+    iChk('_cerrar','Cerrar la investigación al emitir')+iChk('_enviar','Enviar también a mi correo')+
+    (X.pdf?'<div class="acts"><a class="chip" href="'+esc(X.pdf)+'" target="_blank" rel="noopener">'+ico('descargar')+'Último PDF (v'+X.version+')</a>'+(X.word?'<a class="chip" href="'+esc(X.word)+'" target="_blank" rel="noopener">Word</a>':'')+'</div>':'')+
+    (ed?'<button class="btn" style="margin-top:10px" data-g="invemitir"'+(A&&A.hechos?'':' disabled')+'>'+ico('emitir')+'Emitir informe (PDF y Word)</button>':'')+
+    (puede('validador')&&X.id?'<button class="btn ghost" style="width:100%;margin-top:8px;color:var(--int)" data-g="invdel">'+ico('borrar')+'Eliminar investigación</button>':''));
+  var bar = '<button class="btn sec" style="flex:0 0 34%" data-g="invsalir">Salir</button><button class="btn" data-g="invguardar">'+(INV_SUCIA||!X.id?'Guardar avance':'Guardado ✓')+'</button>';
+  return [h, bar];
+}
+
+/* ---------- Árbol de causas: dibujo ---------- */
+function envolver(t, n){ var w = String(t||'').split(/\s+/), l = [], c = ''; w.forEach(function(p){ if ((c+' '+p).trim().length > n && c){ l.push(c); c = p; } else c = (c+' '+p).trim(); }); if (c) l.push(c); return l.slice(0,6); }
+function arbolSvg(A){
+  var H = {}; (A.hechos||[]).forEach(function(h){ H[h.n] = h; });
+  var root = H[A.ultimo] ? A.ultimo : (A.hechos[0]||{}).n; if (root==null) return {svg:'', w:0, h:0};
+  var dep = {}; dep[root] = 0;
+  for (var it=0; it<40; it++){ var cambio = false; A.hechos.forEach(function(h){ if (dep[h.n]==null) return; (h.antecedentes||[]).forEach(function(a){ if (!H[a]) return; if (dep[a]==null || dep[a] < dep[h.n]+1){ if (dep[h.n]+1 < 30){ dep[a] = dep[h.n]+1; cambio = true; } } }); }); if (!cambio) break; }
+  var maxD = 0; Object.keys(dep).forEach(function(k){ maxD = Math.max(maxD, dep[k]); });
+  A.hechos.forEach(function(h){ if (dep[h.n]==null) dep[h.n] = maxD+1; });
+  var capas = []; A.hechos.forEach(function(h){ (capas[dep[h.n]] = capas[dep[h.n]]||[]).push(h.n); });
+  capas = capas.filter(Boolean);
+  var pos = {};
+  capas.forEach(function(c, i){
+    if (i>0) c.sort(function(x, y){ var px = function(n){ var cons = A.hechos.filter(function(h){ return (h.antecedentes||[]).indexOf(n)>=0 && pos[h.n]; }); return cons.length ? cons.reduce(function(s,h){ return s+pos[h.n].i; },0)/cons.length : 99; }; return px(x)-px(y); });
+    c.forEach(function(n, j){ pos[n] = {i:j, capa:i}; });
+  });
+  var W = 196, GX = 26, GY = 54, lineas = {}, alto = {};
+  A.hechos.forEach(function(h){ lineas[h.n] = envolver(h.texto, 27); alto[h.n] = 30 + lineas[h.n].length*15; });
+  var anchoMax = Math.max.apply(null, capas.map(function(c){ return c.length*(W+GX)-GX; })), y = 20, total = anchoMax + 40;
+  capas.forEach(function(c, ci){
+    var hc = Math.max.apply(null, c.map(function(n){ return alto[n]; })), ancho = c.length*(W+GX)-GX, x0 = (total-ancho)/2;
+    // cada hecho se ubica bajo los hechos que posibilita (promedio), sin superponerse
+    var des = c.map(function(n, j){ var cons = ci ? A.hechos.filter(function(h){ return (h.antecedentes||[]).indexOf(n)>=0 && pos[h.n] && pos[h.n].x!=null && pos[h.n].capa<ci; }) : [];
+      return {n:n, x: cons.length ? cons.reduce(function(sm,h){ return sm+pos[h.n].x; },0)/cons.length : x0 + j*(W+GX)}; }).sort(function(p1,p2){ return p1.x-p2.x; });
+    for (var k=1;k<des.length;k++) if (des[k].x < des[k-1].x + W + GX) des[k].x = des[k-1].x + W + GX;
+    var sobra = des.length ? des[des.length-1].x + W + 20 - total : 0; if (sobra>0) des.forEach(function(d){ d.x -= sobra; });
+    var falta = des.length ? 20 - des[0].x : 0; if (falta>0) des.forEach(function(d){ d.x += falta; });
+    des.forEach(function(d){ pos[d.n].x = d.x; pos[d.n].y = y + (hc-alto[d.n])/2; pos[d.n].h = alto[d.n]; });
+    y += hc + GY;
+  });
+  var maxX = 0; A.hechos.forEach(function(h){ if (pos[h.n]) maxX = Math.max(maxX, pos[h.n].x + W); }); total = Math.max(total, maxX + 20);
+  var altoT = y - GY + 20, s = '';
+  var esc2 = function(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  A.hechos.forEach(function(h){ (h.antecedentes||[]).forEach(function(a){ if (!pos[a] || !pos[h.n]) return;
+    var x1 = pos[a].x+W/2, y1 = pos[a].y, x2 = pos[h.n].x+W/2, y2 = pos[h.n].y+pos[h.n].h+2, my = (y1+y2)/2;
+    if (y1 > y2) s += '<path d="M'+x1+' '+y1+' C'+x1+' '+my+' '+x2+' '+my+' '+x2+' '+(y2+6)+'" fill="none" stroke="#64748B" stroke-width="1.6" marker-end="url(#fl)"/>';
+    else s += '<path d="M'+(pos[a].x+W)+' '+(y1+pos[a].h/2)+' L'+(pos[h.n].x-6)+' '+(pos[h.n].y+pos[h.n].h/2)+'" fill="none" stroke="#64748B" stroke-width="1.6" marker-end="url(#fl)"/>'; }); });
+  A.hechos.forEach(function(h){ var P = pos[h.n], esR = h.n===root, perm = h.tipo==='permanente';
+    s += '<g><rect x="'+P.x+'" y="'+P.y+'" width="'+W+'" height="'+P.h+'" rx="'+(perm?4:Math.min(22,P.h/2))+'" fill="'+(esR?'#FEE2E2':perm?'#F1F5F9':'#FFFFFF')+'" stroke="'+(esR?'#DC2626':'#1E3A8A')+'" stroke-width="'+(esR?2.4:1.4)+'"/>'+
+      '<circle cx="'+(P.x+14)+'" cy="'+(P.y+14)+'" r="10" fill="'+(esR?'#DC2626':'#1E3A8A')+'"/><text x="'+(P.x+14)+'" y="'+(P.y+18)+'" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="Arial">'+h.n+'</text>'+
+      lineas[h.n].map(function(l, k){ return '<text x="'+(P.x+W/2+6)+'" y="'+(P.y+22+k*15)+'" text-anchor="middle" font-size="12" fill="#0F172A" font-family="Arial">'+esc2(l)+'</text>'; }).join('')+'</g>'; });
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+total+' '+altoT+'" width="'+total+'" height="'+altoT+'"><defs><marker id="fl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#64748B"/></marker></defs><rect width="100%" height="100%" fill="#fff"/>'+s+'</svg>';
+  return {svg:svg, w:total, h:altoT};
+}
+function arbolPng(A){
+  return new Promise(function(ok){
+    var r = arbolSvg(A); if (!r.svg) return ok('');
+    var img = new Image(), k = Math.min(2, 2400/Math.max(1,r.w));
+    img.onload = function(){ try{ var cv = document.createElement('canvas'); cv.width = Math.round(r.w*k); cv.height = Math.round(r.h*k); var c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0,0,cv.width,cv.height); c.drawImage(img,0,0,cv.width,cv.height); ok(cv.toDataURL('image/png')); }catch(e){ ok(''); } };
+    img.onerror = function(){ ok(''); };
+    img.src = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(r.svg);
+  });
+}
+function invAnalisisHtml(A){
+  var r = arbolSvg(A), JERS = ['Eliminación','Sustitución','Control de ingeniería','Control administrativo','EPP'];
+  var lst = function(path, et, filas){ var v = (invGet(path)||[]).join('\n'); return lab(et)+'<textarea data-ivl="'+path+'" rows="'+(filas||3)+'">'+esc(v)+'</textarea>'; };
+  var h = '<p class="muted" style="margin-top:0;font-size:13px">Propuesto por el perito IA el '+fecha(A.fecha)+'. Revisa y ajusta: es tu informe.</p>';
+  if ((A.faltantes||[]).length) h += '<div class="note aviso" style="margin-bottom:10px"><b>Conviene acreditar:</b><ul style="margin:4px 0 0 18px;padding:0">'+A.faltantes.map(function(f){ return '<li>'+esc(f)+'</li>'; }).join('')+'</ul></div>';
+  h += iArea('analisis.relato','Relato del accidente (solo hechos)','',5);
+  h += '<div class="sub2" style="margin-top:12px">Árbol de causas</div><div class="arbol-box">'+r.svg.replace(/width="[\d.]+" height="[\d.]+"/,'style="width:'+Math.max(100, Math.min(100, 100))+'%;min-width:'+Math.min(r.w, 560)+'px;height:auto"')+'</div>'+
+    '<p class="muted" style="font-size:12.5px">Las flechas van del hecho necesario al hecho que posibilitó. Rojo: último hecho (lesión). Rectángulo: permanente. Óvalo: variación.</p>';
+  h += '<div class="sub2">Hechos</div>'+A.hechos.map(function(x,k){
+    return '<div class="hecho"><div class="lbl"><span class="paso-n" style="background:'+(x.n===A.ultimo?'var(--int)':'var(--head)')+'">'+x.n+'</span><span style="flex:1"></span>'+
+      '<div class="seg" style="width:210px"><button type="button" data-g="ivht:'+k+':variacion" class="'+(x.tipo!=='permanente'?'on':'')+'">Variación</button><button type="button" data-g="ivht:'+k+':permanente" class="'+(x.tipo==='permanente'?'on':'')+'">Permanente</button></div>'+
+      '<button class="x" data-g="ivhdel:'+k+'" aria-label="Quitar hecho">×</button></div>'+
+      '<textarea data-iv="analisis.hechos.'+k+'.texto" rows="2" data-rerender="1">'+esc(x.texto)+'</textarea>'+
+      '<input type="text" data-ivant="'+k+'" value="'+esc((x.antecedentes||[]).join(', '))+'" placeholder="Hechos necesarios para este (números separados por coma)" style="margin-top:6px"></div>'; }).join('')+
+    '<div class="grid2" style="margin-top:8px"><div><button class="btn sec" data-g="ivhadd">'+ico('mas')+'Agregar hecho</button></div><div>'+lab('Último hecho (lesión)')+'<select id="ivUlt">'+A.hechos.map(function(x){ return '<option value="'+x.n+'"'+(x.n===A.ultimo?' selected':'')+'>'+x.n+'. '+esc(String(x.texto).slice(0,40))+'</option>'; }).join('')+'</select></div></div>';
+  h += iTxt('analisis.riesgo','Riesgo que provocó el accidente','');
+  h += '<div class="sub2" style="margin-top:12px">Causas</div>'+lst('analisis.causasInmediatas.condiciones','Condiciones subestándar (una por línea)')+lst('analisis.causasInmediatas.acciones','Acciones subestándar (una por línea, sin culpar)')+
+    lst('analisis.causasBasicas.trabajo','Factores del trabajo y de la organización')+lst('analisis.causasBasicas.personales','Factores personales (solo si están acreditados)',2);
+  if ((A.clasificacion||[]).length) h += '<div class="sub2" style="margin-top:12px">Clasificación según la matriz de causas</div><div class="list">'+A.clasificacion.map(function(c){ return '<div class="li"><span class="tx"><b class="wrap">'+esc(c.causa)+'</b><span>'+esc(c.grupo)+' · '+esc(c.subgrupo)+(c.hechos&&c.hechos.length?' · hechos '+c.hechos.join(', '):'')+'</span></span></div>'; }).join('')+'</div>';
+  var cs = A.consistencia||{};
+  h += '<div class="sub2" style="margin-top:12px">Consistencia entre mecanismo y lesiones</div>'+lab('Evaluación')+'<select data-iv="analisis.consistencia.evaluacion">'+['compatible','parcialmente compatible','no compatible','sin antecedentes suficientes'].map(function(o){ return '<option'+(cs.evaluacion===o?' selected':'')+'>'+o+'</option>'; }).join('')+'</select>'+
+    lst('analisis.consistencia.fundamentos','Fundamentos (uno por línea)',3);
+  h += '<div class="sub2" style="margin-top:12px">Medidas correctivas</div>'+(A.medidas||[]).map(function(m,k){
+    return '<div class="hecho"><div class="lbl"><b>Medida '+(k+1)+'</b>'+(m.medidaId?'<span class="bdg ok sm">En seguimiento</span>':'<button class="x" data-g="ivmdel:'+k+'" aria-label="Quitar medida">×</button>')+'</div>'+
+      '<textarea data-iv="analisis.medidas.'+k+'.medida" rows="2">'+esc(m.medida)+'</textarea>'+
+      '<div class="muted" style="font-size:12.5px;margin:4px 0">Controla: '+esc(m.causa||'')+'</div>'+
+      '<div class="grid2"><div><select data-iv="analisis.medidas.'+k+'.jerarquia">'+JERS.map(function(j){ return '<option'+(m.jerarquia===j?' selected':'')+'>'+j+'</option>'; }).join('')+'</select></div>'+
+      '<div><input type="date" data-iv="analisis.medidas.'+k+'.plazo" value="'+esc(m.plazo||sumaDias(m.plazoDias||15))+'"></div></div>'+
+      '<input type="text" list="dlResp" data-iv="analisis.medidas.'+k+'.responsable" value="'+esc(m.responsable||'')+'" placeholder="Responsable" style="margin-top:6px"></div>'; }).join('')+
+    '<datalist id="dlResp">'+personasCentro().map(function(p){ return '<option value="'+esc(p.nombre)+'">'; }).join('')+'</datalist>'+
+    '<button class="btn sec" data-g="ivmadd">'+ico('mas')+'Agregar medida</button>';
+  h += lst('analisis.conclusiones','Conclusiones (una por línea)',4);
+  return h;
+}
+
+/* ---------- Acciones ---------- */
+var INV_FOTOS_PEND = [];
+try{ INV_FOTOS_PEND = []; }catch(e){}
+function invGuardar(silencio){
+  if (!INV) return Promise.resolve();
+  var cuerpo = JSON.parse(JSON.stringify(INV)); ['fotos','pdf','version','estado','word','_cerrar','_enviar','_sucia'].forEach(function(k){ delete cuerpo[k]; });
+  if (!silencio) busy(true,'Guardando…');
+  return run('guardarInvestigacion', cfg.centro, cuerpo).then(function(r){
+    var nueva = !INV.id; INV.id = r.id; INV_SUCIA = false;
+    if (nueva) try{ localStorage.removeItem('inv:'+idC(cfg.centro)+':nueva'); }catch(e){}
+    try{ localStorage.removeItem('inv:'+idC(cfg.centro)+':'+r.id); }catch(e){}
+    return invSubirPendientes().then(function(){ if (!silencio){ busy(false); toast('Avance guardado.'); } datos.inv = null; render(true); });
+  }).catch(function(e){ if (!silencio) busy(false); toast(e.message); throw e; });
+}
+function invSubirPendientes(){
+  var mios = INV_FOTOS_PEND.filter(function(f){ return f.inv===INV.id || f.inv==='nueva'; });
+  return mios.reduce(function(p, f){ return p.then(function(){
+    return run('subirFotoInvestigacion', INV.id, {mime:f.mime, data:f.data, cat:f.cat, desc:f.desc}).then(function(r){ INV.fotos = r.fotos; INV_FOTOS_PEND = INV_FOTOS_PEND.filter(function(z){ return z!==f; }); });
+  }); }, Promise.resolve()).catch(function(e){ toast('Fotos pendientes de subir: '+e.message); });
+}
+function invTomarFoto(i){
+  var c = FOTO_CATS[i];
+  abrirSheet(cabecera(esc(c[0]))+(c[1]?'<p class="muted" style="margin-top:0">'+esc(c[1])+'</p>':'')+lab('Qué muestra la fotografía')+'<input type="text" id="ivfDesc" placeholder="Ej.: piso vinílico con producto aplicado, vista desde la puerta">'+
+    '<div style="height:12px"></div><button class="btn" id="ivfOk">'+ico('foto')+'Tomar o elegir fotografía</button>');
+  $('ivfOk').onclick = function(){ var inp = $('fotoInv'); inp.dataset.cat = c[0]; inp.dataset.desc = $('ivfDesc').value.trim(); inp.value = ''; cerrarSheet(); inp.click(); };
+}
+document.addEventListener('change', function(e){
+  var el = e.target;
+  if (el.id==='fotoInv' && el.files[0] && INV){
+    var cat = el.dataset.cat, desc = el.dataset.desc;
+    procesarFoto(el.files[0], 1400).then(function(f){
+      INV_FOTOS_PEND.push({inv:INV.id||'nueva', mime:f.mime, data:f.data, thumb:f.thumb, cat:cat, desc:desc}); INV_ABIERTA.sitio = true;
+      if (INV.id && online()){ busy(true,'Subiendo la fotografía…'); return invSubirPendientes().then(function(){ busy(false); render(true); toast('Fotografía guardada.'); }); }
+      render(true); toast('Fotografía lista. Se sube al guardar el avance.');
+    }).catch(function(er){ busy(false); toast(er.message); });
+  }
+  if (el.id==='ivPers' && INV){
+    var D = datos.personal, x = D && D.personas.filter(function(p){ return p.id===el.value; })[0]; if (!x) return;
+    var a = INV.accidentado; a.trabajadorId = x.id; a.nombre = x.nombre; a.rut = x.rut; a.cargo = x.puesto; if (x.fechaContratacion) a.fechaContrato = x.fechaContratacion;
+    a.antiguedad = antiguedadDe(a.fechaContrato, INV.evento.fecha); INV_SUCIA = true; invLocal(); INV_CTX = null; invCargarCtx(); render(true);
+  }
+  if (el.id==='ivTarea' && INV){ INV.tareaId = el.value || ''; var t = (INV_CTX.tareas||[]).filter(function(z){ return z.id===el.value; })[0]; if (t) INV.evento.tarea = t.tarea; INV_SUCIA = true; invLocal(); render(true); }
+  if (el.id==='ivUlt' && INV){ INV.analisis.ultimo = +el.value; INV_SUCIA = true; invLocal(); render(true); }
+  if (el.dataset && el.dataset.iv!=null && INV){
+    var v = el.type==='checkbox' ? el.checked : el.value;
+    if (el.dataset.iv==='_cerrar' || el.dataset.iv==='_enviar'){ INV[el.dataset.iv] = v; return; }
+    invSet(el.dataset.iv, v);
+    if (/^(accidentado\.(fechaNacimiento|fechaContrato)|evento\.fecha)$/.test(el.dataset.iv)){ INV.accidentado.edad = edadDe(INV.accidentado.fechaNacimiento, INV.evento.fecha); INV.accidentado.antiguedad = antiguedadDe(INV.accidentado.fechaContrato, INV.evento.fecha); render(true); }
+    if (el.dataset.rerender || el.tagName==='SELECT') render(true);
+  }
+  if (el.dataset && el.dataset.ivl!=null && INV){ invSet(el.dataset.ivl, lineas(el.value)); }
+  if (el.dataset && el.dataset.ivant!=null && INV){ var k = +el.dataset.ivant, ns = INV.analisis.hechos.map(function(h){ return h.n; });
+    INV.analisis.hechos[k].antecedentes = String(el.value).split(/[^\d]+/).map(Number).filter(function(n){ return n && ns.indexOf(n)>=0 && n!==INV.analisis.hechos[k].n; }); INV_SUCIA = true; invLocal(); render(true); }
+});
+document.addEventListener('input', function(e){ var el = e.target; if (!INV || !el.dataset) return;
+  if (el.dataset.iv!=null && el.type!=='checkbox' && el.tagName!=='SELECT' && !el.dataset.rerender){ invSet(el.dataset.iv, el.value); var b = document.querySelector('[data-g=invguardar]'); if (b) b.textContent = 'Guardar avance'; }
+});
+document.addEventListener('toggle', function(e){ var d = e.target; if (d.dataset && d.dataset.invsec) INV_ABIERTA[d.dataset.invsec] = d.open; }, true);
+function invAccion(c, a){
+  if (c==='invnueva') return invNueva();
+  if (c==='invabrir') return invAbrir(a[1]);
+  if (!INV) return;
+  if (c==='invsalir'){ if (INV_SUCIA){ INV._sucia = true; invLocal(); } INV = null; INV_CTX = null; cargar('inv'); render(); return toast(INV_SUCIA?'Los cambios quedaron en este teléfono. Guarda el avance cuando puedas.':'Investigación cerrada.'); }
+  if (c==='invguardar') return invGuardar(false);
+  if (c==='ivseg'){ invSet(a[1], a[2]); return render(true); }
+  if (c==='ivdoc'){ var it = INV.documental.items[+a[1]]; it.res = it.res===a[2] ? '' : a[2]; it.manual = true; INV_SUCIA = true; invLocal(); return render(true); }
+  if (c==='invfoto') return invTomarFoto(+a[1]);
+  if (c==='invfq'){ var fid = a.slice(1).join(':'); busy(true,'Quitando la fotografía…'); return run('quitarFotoInvestigacion', INV.id, fid).then(function(r){ busy(false); INV.fotos = r.fotos; render(true); }).catch(function(e){ busy(false); toast(e.message); }); }
+  if (c==='invtadd'){ INV.declaraciones.testigos = (INV.declaraciones.testigos||[]).concat([{nombre:'', cargo:'', declaracion:''}]); INV_SUCIA = true; invLocal(); INV_ABIERTA.decl = true; return render(true); }
+  if (c==='invtdel'){ INV.declaraciones.testigos.splice(+a[1],1); INV_SUCIA = true; invLocal(); return render(true); }
+  if (c==='invorienta'){
+    if (!online()) return toast('La orientación de la IA necesita conexión.');
+    pedirPermisoAvisos();
+    return invGuardar(true).then(function(){ busy(true,'El perito IA revisa los antecedentes…','Relatos, lugar, lesiones y fotografías'); progTramo(0,100,25);
+      return run('orientarInvestigacion', INV.id).then(function(o){ busy(false); INV.orientacion = o; render(true); window.scrollTo(0,0); avisar('Orientación lista','El perito IA revisó la investigación.','inv'); }); })
+      .catch(function(e){ busy(false); toast(e.message, 6000); });
+  }
+  if (c==='invanaliza'){
+    if (!online()) return toast('El análisis necesita conexión.');
+    pedirPermisoAvisos();
+    return invGuardar(true).then(function(){ busy(true,'Construyendo el árbol de causas…','Relato, hechos, causas, consistencia y medidas'); progTramo(0,100,45);
+      return run('analizarInvestigacion', INV.id).then(function(A){ busy(false); INV.analisis = A; INV_ABIERTA = {analisis:true}; render(true); var s = document.querySelector('[data-invsec=analisis]'); if (s) s.scrollIntoView({block:'start'}); avisar('Árbol de causas listo','Revisa el análisis de la investigación.','inv'); }); })
+      .catch(function(e){ busy(false); toast(e.message, 7000); });
+  }
+  if (c==='ivht'){ INV.analisis.hechos[+a[1]].tipo = a[2]; INV_SUCIA = true; invLocal(); return render(true); }
+  if (c==='ivhdel'){ var hq = INV.analisis.hechos.splice(+a[1],1)[0]; INV.analisis.hechos.forEach(function(h){ h.antecedentes = (h.antecedentes||[]).filter(function(n){ return n!==hq.n; }); }); INV_SUCIA = true; invLocal(); return render(true); }
+  if (c==='ivhadd'){ var mx = INV.analisis.hechos.reduce(function(m,h){ return Math.max(m,h.n); },0); INV.analisis.hechos.push({n:mx+1, texto:'Nuevo hecho', tipo:'variacion', antecedentes:[]}); INV_SUCIA = true; invLocal(); return render(true); }
+  if (c==='ivmdel'){ INV.analisis.medidas.splice(+a[1],1); INV_SUCIA = true; invLocal(); return render(true); }
+  if (c==='ivmadd'){ INV.analisis.medidas.push({medida:'', jerarquia:'Control administrativo', causa:'', hechos:[], plazoDias:15, responsable:''}); INV_SUCIA = true; invLocal(); return render(true); }
+  if (c==='invemitir'){
+    if (!online()) return toast('Emitir el informe necesita conexión.');
+    var cerrar = !!INV._cerrar, env = !!INV._enviar;
+    return invGuardar(true).then(function(){ return arbolPng(INV.analisis); }).then(function(png){
+      busy(true,'Generando el informe…','PDF para firmar y Word para editar'); progTramo(0,100,40);
+      return run('emitirInformeInvestigacion', INV.id, {arbolPng:png, cerrar:cerrar, enviar:env}).then(function(r){
+        busy(false); INV = r.investigacion; INV_SUCIA = false; datos.medidas = null; datos.programa = null; datos.docs = null; datos.cumpl = null; render(true);
+        mostrarDocs('Informe v'+r.version+' listo', r, '<div class="note bien" style="margin-bottom:12px">'+(r.medidas?r.medidas+' medida(s) correctiva(s) quedaron en Medidas y en el programa de trabajo. ':'')+'Imprime el PDF para las firmas.</div>');
+      }); }).catch(function(e){ busy(false); toast(e.message, 7000); });
+  }
+  if (c==='invdel'){
+    abrirSheet(cabecera('¿Eliminar la investigación?')+'<p>Se borra el registro. Las fotografías y los informes ya emitidos quedan en Drive, y las medidas creadas se mantienen.</p><button class="btn" style="background:var(--int);border-color:var(--int)" id="ivDelOk">Eliminar</button>');
+    $('ivDelOk').onclick = function(){ var id = INV.id; cerrarSheet(); busy(true,'Eliminando…'); run('eliminarInvestigacion', id).then(function(){ busy(false); INV = null; cargar('inv'); render(); toast('Investigación eliminada.'); }).catch(function(e){ busy(false); toast(e.message); }); };
+  }
+}
+document.addEventListener('click', function(e){ var b = e.target.closest('[data-g]'); if (!b) return; var a = b.dataset.g.split(':'); if (/^(inv|iv)/.test(a[0])){ e.preventDefault(); invAccion(a[0], a); } });
 
 /* ======================= Eventos ======================= */
 (function(){
@@ -5430,7 +5848,7 @@ function init2(){
     run('getConfig').then(function(c){
       aplicarConfig(c);
       if (init.enlace) toast('Conectado como '+c.usuario.nombre+' ('+c.usuario.rolTxt+').', 5000);
-      if (modo()!=='demo' && (!c.version || c.version<30)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
+      if (modo()!=='demo' && (!c.version || c.version<31)) toast('El servidor es una versión anterior. Actualiza los archivos del servidor y publica una versión nueva.', 8000);
       else if (!c.tieneClave && puede('admin') && !(c.usuario||{}).tieneClaveGemini) toast('Falta configurar GEMINI_API_KEY en el servidor.');
       else migrarV1();
       if (!abrirUnico()) render(true);
@@ -5576,6 +5994,11 @@ var Demo = (function(){
     listarInspecciones: function(){ return []; },
     revisarDocumentos: function(c, ids, mods){ return {empresa:[], personas:(ids||[]).map(function(i){ return {id:i, nombre:'', puesto:'', bloqueos:[], avisos:[]}; }), listas:(ids||[]).length}; },
     listarDocumentos: function(){ return []; },
+    listarInvestigaciones: function(){ return []; },
+    guardarInvestigacion: function(){ throw new Error('DEMO:Guardar investigaciones de accidentes'); },
+    contextoInvestigacion: function(){ return {persona:null, tareas:[], riesgos:[], pts:[], epp:[], documentos:{}, inspecciones:[], medidasPuesto:[]}; },
+    orientarInvestigacion: function(){ throw new Error('DEMO:Orientación del perito IA'); },
+    analizarInvestigacion: function(){ throw new Error('DEMO:Árbol de causas con IA'); },
     guardarInspeccion: function(){ throw new Error('DEMO:Guardar inspecciones con registro en PDF'); },
     eliminarInspeccion: function(){ return {ok:true}; },
     listarMedidas: function(c){ return DB.medidas.filter(centro(c)).map(function(m){ return Object.assign({},m,{vencida:m.estado!=='Verificada'&&new Date(m.plazo)<new Date(Date.now()-864e5)}); }); },
