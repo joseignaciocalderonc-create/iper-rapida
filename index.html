@@ -84,6 +84,12 @@
   .steps{display:flex;gap:6px;margin:0 0 16px}
   .steps span{flex:1;height:4px;border-radius:9px;background:var(--line)} .steps span.on{background:var(--brand)}
   .pasos-t{font-size:13px;color:var(--muted);margin:0 0 4px}
+  .mapa-wrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;margin:6px 0}
+  .mapa-wrap svg{display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none}
+  .mapa-wrap.full{position:fixed;inset:0;z-index:300;border-radius:0;margin:0;display:flex;align-items:center;justify-content:center;background:#fff}
+  .mapa-wrap.full svg{max-height:100vh;width:auto;max-width:100%}
+  .mapa-cerrar{position:fixed;top:10px;right:10px;width:auto;z-index:301;padding:8px 16px}
+  .mpt{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:-1px}
   .toggle{display:flex;background:var(--soft);border-radius:10px;padding:3px}
   .toggle button{flex:1;border:0;background:none;padding:9px;border-radius:8px;font:inherit;font-weight:700;color:var(--muted)}
   .toggle button.on{background:rgba(255,255,255,.13);color:var(--ink)}
@@ -595,6 +601,7 @@
 <input type="file" id="fotoEvid" accept="image/*" class="hidden">
 <input type="file" id="fotoInsp" accept="image/*" capture="environment" class="hidden">
 <input type="file" id="fotoInv" accept="image/*" capture="environment" class="hidden">
+<input type="file" id="fotoMapa" accept="image/*" class="hidden">
 <input type="file" id="archInv" accept=".pdf,.doc,.docx,.xls,.xlsx,image/*,application/pdf" class="hidden">
 
 <div class="overlay" id="busy" role="status" aria-live="polite"><div class="box"><div class="spin"></div><b id="busyTxt">Analizando…</b><div class="muted" id="busySub" style="margin-top:6px"></div>
@@ -1874,11 +1881,12 @@ document.addEventListener('focusout', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-registro')) return;
   var f = formatoRegistro(el.value); if (f) el.value = f;
 });
-var VERSION_APP = '31.0';
+var VERSION_APP = '32.0';
 /* SERVIDOR: pega aquí la URL de tu servidor (Apps Script, termina en /exec). Así cualquier persona puede crear su cuenta sin enlaces especiales. */
 var SERVIDOR = 'https://script.google.com/macros/s/AKfycbxlDbd2I8NY714NgEYDDx3aTS6jIalJ_WJBjrhWpb-VAZFDdPc3VdHcmPbSWslpy0mL/exec';
 /* Íconos de línea (24×24, trazo 2, un solo estilo en toda la app; geometría al estilo Lucide). Un ícono = un concepto. */
 var ICO = {
+  mapa:'<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/>',
   descargar:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
   subir:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
   atras:'<path d="M15 18l-6-6 6-6"/>', chev:'<path d="M9 18l6-6-6-6"/>',
@@ -2010,7 +2018,7 @@ var cfg = Object.assign({empresa:'', centro:'', respEjec:'', respSeg:'', aprobad
 var SRV = {catalogo:[], listas:{}, avisosActivos:false, version:0, usuario:null, logo:'', centros:[]};
 var CATMAP = {};
 var tab = 'centros', paso = 1, tabPrev = 'centros', filtroCentros = '', verCumplOk = false;
-var TABS_CENTRO = ['inicio','evaluar','matriz','medidas','personal','emitir','emitidos','inv'];
+var TABS_CENTRO = ['inicio','evaluar','matriz','medidas','personal','emitir','emitidos','inv','mapa'];
 var borradores = cargarBorradores();
 var cur = null;
 var datos = {tareas:null, medidas:null, panel:null, usuarios:null, cumpl:null, personal:null, programa:null, insp:null};
@@ -2441,7 +2449,7 @@ function render(keepScroll){
   document.body.classList.toggle('con-nav', enCentro);
   document.querySelectorAll('nav button').forEach(function(b){ b.classList.toggle('on', b.dataset.tab===tab); });
   $('btnAjustes').classList.toggle('on', tab==='ajustes');
-  var r = tab==='acceso'?[renderAcceso(),'']:tab==='centros'?renderCentros():tab==='inicio'?renderInicio():tab==='evaluar'?renderNueva():tab==='matriz'?renderMatriz():tab==='medidas'?renderMedidas():tab==='personal'?renderPersonal():tab==='emitir'?renderEmitir():tab==='emitidos'?renderEmitidos():tab==='inv'?renderInv():tab==='admin'?renderAdmin():[renderAjustes(),''];
+  var r = tab==='acceso'?[renderAcceso(),'']:tab==='centros'?renderCentros():tab==='inicio'?renderInicio():tab==='evaluar'?renderNueva():tab==='matriz'?renderMatriz():tab==='medidas'?renderMedidas():tab==='personal'?renderPersonal():tab==='emitir'?renderEmitir():tab==='emitidos'?renderEmitidos():tab==='inv'?renderInv():tab==='mapa'?renderMapa():tab==='admin'?renderAdmin():[renderAjustes(),''];
   $('app').innerHTML = (enDemo() && tab!=='acceso' ? bannerDemo() : '') + r[0];
   $('barIn').innerHTML = r[1]; $('bar').classList.toggle('hidden', !r[1]);
   pintarCabecera(); pintarMenu();
@@ -2477,7 +2485,7 @@ function irA(t){
   if (t==='admin'){ datos.admin = null; run('adminCuentas').then(function(r){ datos.admin = r; if (tab==='admin') render(true); }).catch(function(e){ toast(e.message); }); }
   if (t==='evaluar' && !cur){ var l = listaBorradores().filter(enEsteCentro); if (l.length) { abrirBorrador(l[0].bid); return; } nuevaEvaluacion(); return; }
   tab=t;
-  if (t==='matriz') cargar('tareas'); if (t==='medidas'){ cargar('medidas'); if (subMed==='programa') cargar('programa'); if (subMed==='insp') cargar('insp'); } if (t==='inicio'){ cargar('panel'); cargar('cumpl'); cargar('medidas'); } if (t==='personal' || t==='emitir') cargar('personal'); if (t==='emitidos') cargar('docs'); if (t==='inv'){ if (!INV) cargar('inv'); if (!datos.personal) cargar('personal'); }
+  if (t==='matriz') cargar('tareas'); if (t==='medidas'){ cargar('medidas'); if (subMed==='programa') cargar('programa'); if (subMed==='insp') cargar('insp'); } if (t==='inicio'){ cargar('panel'); cargar('cumpl'); cargar('medidas'); } if (t==='personal' || t==='emitir') cargar('personal'); if (t==='emitidos') cargar('docs'); if (t==='mapa' && !MAPA) cargar('mapas'); if (t==='inv'){ if (!INV) cargar('inv'); if (!datos.personal) cargar('personal'); }
   if (t==='ajustes' && puede('admin') && modo()!=='gas' && !(SRV.usuario && SRV.usuario.tipo==='cuenta')) cargarUsuarios();
   render();
 }
@@ -2490,9 +2498,9 @@ function atras(){
 }
 function cargar(que){
   if (!cfg.centro || !online()) return;
-  var fn = {tareas:'listarTareas', medidas:'listarMedidas', panel:'panel', cumpl:'cumplimiento', personal:'listarPersonal', programa:'programaInfo', insp:'listarInspecciones', docs:'listarDocumentos', inv:'listarInvestigaciones'}[que];
+  var fn = {tareas:'listarTareas', medidas:'listarMedidas', panel:'panel', cumpl:'cumplimiento', personal:'listarPersonal', programa:'programaInfo', insp:'listarInspecciones', docs:'listarDocumentos', inv:'listarInvestigaciones', mapas:'listarMapas'}[que];
   datos[que] = null;
-  run(fn, cfg.centro).then(function(d){ datos[que]=d; if ((que==='tareas'&&tab==='matriz')||(que==='medidas'&&tab==='medidas')||((que==='panel'||que==='cumpl')&&tab==='inicio')||(que==='personal'&&tab==='personal')||((que==='programa'||que==='insp')&&tab==='medidas')||(que==='personal'&&tab==='emitir')||(que==='docs'&&tab==='emitidos')||(que==='inv'&&tab==='inv')||(que==='personal'&&tab==='inv')||(que==='medidas'&&tab==='inicio')) render(true); })
+  run(fn, cfg.centro).then(function(d){ datos[que]=d; if ((que==='tareas'&&tab==='matriz')||(que==='medidas'&&tab==='medidas')||((que==='panel'||que==='cumpl')&&tab==='inicio')||(que==='personal'&&tab==='personal')||((que==='programa'||que==='insp')&&tab==='medidas')||(que==='personal'&&tab==='emitir')||(que==='docs'&&tab==='emitidos')||(que==='inv'&&tab==='inv')||(que==='mapas'&&tab==='mapa')||(que==='personal'&&tab==='inv')||(que==='medidas'&&tab==='inicio')) render(true); })
     .catch(function(e){ datos[que]=(que==='panel'||que==='cumpl'||que==='programa'||que==='inv')?{error:true}:que==='personal'?{puestos:[],personas:[]}:[]; if (!e.sinRed && !e.sesion) toast(e.message); render(true); });
 }
 
@@ -3648,6 +3656,7 @@ function manejarGestion(e){
   var a = b.dataset.g.split(':'), c = a[0];
   if (b.tagName==='A') return;
   e.preventDefault();
+  if (/^map/.test(c)) return manejarMapa(c, a);
   if (c==='ininsp'){ subMed = 'insp'; return irA('medidas'); }
   if (c==='nuevoreg') return nuevoRegistro();
   if (c==='nr'){ cerrarSheet(); var k0 = a[1];
@@ -5073,6 +5082,7 @@ function accionCumplimiento(i){
   else if (it.accion==='medidas'){ filtroMed = /vencida/.test(it.detalle) ? 'vencidas' : 'abiertas'; irA('medidas'); }
   else if (it.accion==='personal'){ irA('personal'); }
   else if (it.accion==='programa'){ subMed = 'programa'; irA('medidas'); }
+  else if (it.accion==='mapa'){ irA('mapa'); }
   else if (it.accion==='autorizar'){ irA('matriz'); if (puede('validador')) setTimeout(function(){ if (datos.tareas) abrirAutorizacion(); }, 1200); else toast('Pide a quien valida la matriz que la autorice y firme.'); }
   else if (it.accion==='centro'){
     var sec = it.id==='ficha' ? (fichaFaltantes(centroInfo(cfg.centro)).indexOf('número de trabajadores')>=0 && fichaFaltantes(centroInfo(cfg.centro)).length===1 ? 'personas' : 'empresa') : 'org';
@@ -5185,11 +5195,347 @@ function elegirPuestoBiblio(key){
   };
 }
 
+/* ======================= v32: Mapa de riesgos (art. 62 D.S. N° 44) ======================= */
+var MAPA = null, MAPA_FULL = false, MAPA_MODO = 'riesgos', MAPA_SEL = null, MW = 1100, MH = 850;
+var COL_MAPA = {rojo:'#D32F2F', anaranjado:'#F57C00', amarillo:'#F9C80E', verde:'#2E7D32', gris:'#9E9E9E'};
+var TB = {x:12, y:12, w:270}; // recuadro de riesgos transversales (arriba a la izquierda)
+function nMapa(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(function(w){ return w.length>2; }); }
+function pictoDe(r){
+  var t = String(r.riesgo||'').toLowerCase();
+  if (r.fam==='PSI') return 'psico';
+  if (/atropell|veh[ií]cul|tr[aá]nsito|gr[uú]a|horquilla/.test(t)) return 'vehiculo';
+  if (/ca[ií]da de objeto|derrumb|desplom|objetos desprendidos/.test(t)) return 'caidaobj';
+  if (/ca[ií]da|resbal|tropez|nivel|altura/.test(t)) return 'caida';
+  if (/el[eé]ctric/.test(t)) return 'electrico';
+  if (/incendio|explosi|inflamab/.test(t)) return 'incendio';
+  if (/radiaci/.test(t)) return 'radiacion';
+  if (/biol[oó]gic|virus|bacteri|hongo/.test(t)) return 'biologico';
+  if (/ruido/.test(t)) return 'ruido';
+  if (/calor|fr[ií]o|t[eé]rmic|temperatura|quemad/.test(t)) return 'temperatura';
+  if (/qu[ií]mic|sustanci|c[aá]ustic|corrosiv|t[oó]xic|gases|vapor|humo|polvo|s[ií]lice/.test(t)) return 'quimico';
+  if (/atrap/.test(t)) return 'atrapamiento';
+  if (/corte|cortante|punzan|filo/.test(t)) return 'corte';
+  if (/proyecci|part[ií]cula|esquirla/.test(t)) return 'proyeccion';
+  if (r.fam==='MUS' || /carga|manipulaci|postura|repetitiv|ergon|sobreesfuerzo/.test(t)) return 'carga';
+  if (/golpe|choque/.test(t)) return 'golpe';
+  return 'general';
+}
+/* Pictogramas originales en negro, dibujados dentro de un triángulo de 100×100 */
+var PICTOS = {
+  general:'<rect x="45" y="36" width="10" height="30" rx="3"/><circle cx="50" cy="76" r="6"/>',
+  caida:'<circle cx="38" cy="40" r="6"/><path d="M40 47 L52 60 L66 56 M48 54 L40 70 M52 60 L60 74" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round"/><rect x="22" y="78" width="56" height="5"/>',
+  caidaobj:'<rect x="40" y="30" width="20" height="16"/><path d="M50 48 V58 M44 53 L50 60 L56 53" stroke="#000" stroke-width="5" fill="none"/><circle cx="50" cy="70" r="7"/><rect x="40" y="78" width="20" height="5"/>',
+  corte:'<path d="M28 74 L62 40 L70 44 L36 78 Z"/><rect x="62" y="34" width="14" height="8" transform="rotate(45 69 38)"/>',
+  golpe:'<circle cx="42" cy="56" r="10"/><path d="M58 46 L72 40 M60 56 L76 56 M58 66 L72 72" stroke="#000" stroke-width="5"/>',
+  atrapamiento:'<circle cx="40" cy="60" r="13" fill="none" stroke="#000" stroke-width="6"/><circle cx="62" cy="60" r="13" fill="none" stroke="#000" stroke-width="6"/><circle cx="40" cy="60" r="4"/><circle cx="62" cy="60" r="4"/>',
+  electrico:'<path d="M56 30 L36 62 H50 L44 84 L66 50 H52 Z"/>',
+  quimico:'<path d="M42 32 H58 V46 L70 76 H30 L42 46 Z"/><rect x="36" y="62" width="28" height="6" fill="#F9C80E"/>',
+  ruido:'<path d="M30 52 H40 L52 42 V78 L40 68 H30 Z"/><path d="M58 50 Q64 60 58 70 M64 44 Q74 60 64 76" stroke="#000" stroke-width="4" fill="none"/>',
+  temperatura:'<rect x="45" y="32" width="10" height="34" rx="5"/><circle cx="50" cy="72" r="9"/><path d="M58 40 H64 M58 48 H64 M58 56 H64" stroke="#000" stroke-width="3"/>',
+  radiacion:'<circle cx="50" cy="60" r="5"/><path d="M50 60 L38 42 A22 22 0 0 1 62 42 Z M50 60 L72 62 A22 22 0 0 1 60 80 Z M50 60 L40 80 A22 22 0 0 1 28 62 Z"/>',
+  biologico:'<circle cx="50" cy="48" r="9" fill="none" stroke="#000" stroke-width="5"/><circle cx="40" cy="66" r="9" fill="none" stroke="#000" stroke-width="5"/><circle cx="60" cy="66" r="9" fill="none" stroke="#000" stroke-width="5"/><circle cx="50" cy="60" r="4"/>',
+  incendio:'<path d="M50 30 C60 44 68 52 66 66 C64 78 56 82 50 82 C42 82 34 76 34 66 C34 56 42 52 44 42 C48 50 50 52 52 50 C54 44 52 38 50 30 Z"/>',
+  proyeccion:'<rect x="28" y="52" width="16" height="16"/><circle cx="56" cy="50" r="3"/><circle cx="64" cy="58" r="3"/><circle cx="58" cy="68" r="3"/><circle cx="70" cy="46" r="3"/><circle cx="72" cy="66" r="3"/>',
+  vehiculo:'<rect x="26" y="50" width="30" height="20"/><path d="M56 56 H68 L74 64 V70 H56 Z"/><circle cx="36" cy="74" r="5"/><circle cx="66" cy="74" r="5"/>',
+  carga:'<circle cx="40" cy="38" r="6"/><path d="M40 45 L44 60 L36 78 M44 60 L52 78 M42 50 L58 54" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round"/><rect x="56" y="46" width="16" height="16"/>',
+  psico:'<circle cx="46" cy="54" r="14" fill="none" stroke="#000" stroke-width="5"/><path d="M58 60 L60 72 H52" stroke="#000" stroke-width="5" fill="none"/><path d="M40 50 L45 56 L50 46 L54 54" stroke="#000" stroke-width="3" fill="none"/>'
+};
+function simboloSvg(r, n, cx, cy, sz){
+  sz = sz || 50; var col = COL_MAPA[r.color] || COL_MAPA.gris;
+  return '<g transform="translate('+(cx-sz/2)+','+(cy-sz/2)+') scale('+(sz/100)+')">'+
+    '<path d="M50 4 L97 90 H3 Z" fill="#F9C80E" stroke="#000" stroke-width="6" stroke-linejoin="round"/>'+(PICTOS[pictoDe(r)]||PICTOS.general)+
+    '<circle cx="88" cy="88" r="17" fill="'+col+'" stroke="#fff" stroke-width="4"/><text x="88" y="95" text-anchor="middle" font-size="21" font-weight="700" fill="'+(r.color==='amarillo'?'#000':'#fff')+'" font-family="Arial,sans-serif">'+n+'</text></g>';
+}
+function elementoSvg(e){
+  var x = AX(e.x), y = AY(e.y), et = function(t){ return t ? '<text x="'+x+'" y="'+(y+26)+'" text-anchor="middle" font-size="12" fill="#334155" font-family="Arial,sans-serif">'+escX(t)+'</text>' : ''; };
+  var f = {puerta:'<rect x="'+(x-14)+'" y="'+(y-4)+'" width="28" height="8" fill="#fff" stroke="#334155" stroke-width="2"/>',
+    salida:'<rect x="'+(x-16)+'" y="'+(y-10)+'" width="32" height="20" rx="3" fill="#2E7D32"/><text x="'+x+'" y="'+(y+5)+'" text-anchor="middle" font-size="11" fill="#fff" font-weight="700" font-family="Arial">SALIDA</text>',
+    extintor:'<circle cx="'+x+'" cy="'+y+'" r="11" fill="#D32F2F"/><text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" font-size="12" fill="#fff" font-weight="700" font-family="Arial">E</text>',
+    tablero:'<rect x="'+(x-10)+'" y="'+(y-12)+'" width="20" height="24" fill="#fff" stroke="#000" stroke-width="2"/><path d="M'+(x+2)+' '+(y-8)+' L'+(x-4)+' '+(y+1)+' H'+(x+1)+' L'+(x-2)+' '+(y+8)+'" stroke="#000" stroke-width="2" fill="none"/>',
+    escalera:'<rect x="'+(x-14)+'" y="'+(y-14)+'" width="28" height="28" fill="#fff" stroke="#334155" stroke-width="2"/><path d="M'+(x-14)+' '+(y-5)+' H'+(x+14)+' M'+(x-14)+' '+(y+4)+' H'+(x+14)+'" stroke="#334155" stroke-width="2"/>',
+    maquina:'<rect x="'+(x-14)+'" y="'+(y-12)+'" width="28" height="24" rx="3" fill="#E2E8F0" stroke="#334155" stroke-width="2"/><circle cx="'+x+'" cy="'+y+'" r="6" fill="none" stroke="#334155" stroke-width="2"/>'}[e.tipo] || '';
+  return f + et(e.nombre);
+}
+/** Área donde va el croquis: deja arriba la franja de riesgos transversales y abajo la de la leyenda, para que no tapen zonas. */
+function areaMapa(){
+  var M = MAPA||{}, nT = (M.simbolos||[]).filter(function(x){ return x.zona==='T'; }).length, nI = Math.min(8, (M.riesgos||[]).filter(function(r){ return (M.incluidos||[]).indexOf(r.k)>=0; }).length);
+  var top = nT ? 40 + Math.ceil(nT/4)*62 + 24 : 12, bot = nI ? 34 + nI*20 + (nI>=8?18:0) + 24 : 12;
+  return {x:12, y:top, w:MW-24, h:MH-top-bot, hT: nT ? 40 + Math.ceil(nT/4)*62 : 0};
+}
+function AX(v){ var A = areaMapa(); return A.x + v*A.w; } function AY(v){ var A = areaMapa(); return A.y + v*A.h; }
+function escX(t){ return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function riesgoMapa(k){ return (MAPA.riesgos||[]).filter(function(r){ return r.k===k; })[0]; }
+function numeroDe(k){ var inc = MAPA.incluidos||[], R = (MAPA.riesgos||[]).filter(function(r){ return inc.indexOf(r.k)>=0; }); return R.map(function(r){ return r.k; }).indexOf(k)+1; }
+/** Dibujo completo del mapa (pantalla y exportación). */
+function mapaSvg(exportar){
+  var M = MAPA, s = '<svg xmlns="http://www.w3.org/2000/svg" id="mapaSvg" viewBox="0 0 '+MW+' '+MH+'" width="'+MW+'" height="'+MH+'" style="font-family:Arial,sans-serif;touch-action:none;background:#fff">';
+  s += '<rect width="'+MW+'" height="'+MH+'" fill="#fff"/>';
+  var A = areaMapa();
+  if (M.fondo && M.verFondo!==false) s += '<image href="'+M.fondo+'" x="'+A.x+'" y="'+A.y+'" width="'+A.w+'" height="'+A.h+'" preserveAspectRatio="xMidYMid meet" opacity="'+(M.zonas.length?0.55:1)+'"/>';
+  (M.zonas||[]).forEach(function(z){
+    var x = AX(z.x), y = AY(z.y), w = z.w*A.w, h = z.h*A.h, sel = !exportar && MAPA_SEL && MAPA_SEL.t==='z' && MAPA_SEL.id===z.id;
+    s += '<g data-zona="'+z.id+'"><rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+(M.fondo&&M.verFondo!==false?'rgba(255,255,255,.35)':'#F8FAFC')+'" stroke="'+(sel?'#1E3A8A':'#334155')+'" stroke-width="'+(sel?4:2.5)+'"/>'+
+      '<text x="'+(x+10)+'" y="'+(y+24)+'" font-size="18" font-weight="700" fill="#0F172A">'+escX(z.nombre)+'</text>'+
+      (!exportar && MAPA_MODO==='zonas' ? '<rect data-zh="'+z.id+'" x="'+(x+w-26)+'" y="'+(y+h-26)+'" width="26" height="26" fill="#1E3A8A" opacity=".85"/><path d="M'+(x+w-18)+' '+(y+h-6)+' L'+(x+w-6)+' '+(y+h-18)+'" stroke="#fff" stroke-width="2.5" pointer-events="none"/>' : '')+'</g>';
+  });
+  (M.elementos||[]).forEach(function(e){ s += elementoSvg(e); });
+  // Transversales (arriba a la izquierda)
+  var trans = (M.simbolos||[]).filter(function(x){ return x.zona==='T'; });
+  if (trans.length){
+    var hT = A.hT;
+    s += '<g><rect x="'+TB.x+'" y="'+TB.y+'" width="'+TB.w+'" height="'+hT+'" rx="8" fill="#FFFFFF" stroke="#0F172A" stroke-width="2"/><text x="'+(TB.x+12)+'" y="'+(TB.y+24)+'" font-size="15" font-weight="700" fill="#0F172A">En todo el lugar de trabajo</text></g>';
+    trans.forEach(function(sm, i){ sm._x = TB.x + 40 + (i%4)*62; sm._y = TB.y + 66 + Math.floor(i/4)*62; });
+  }
+  // Leyenda compacta (abajo a la derecha)
+  var inc = (M.riesgos||[]).filter(function(r){ return (M.incluidos||[]).indexOf(r.k)>=0; });
+  if (inc.length){
+    var filas = inc.slice(0, 8), lw = 360, lh = 34 + filas.length*20 + (inc.length>8?18:0), lx = MW-lw-12, ly = MH-lh-12;
+    s += '<g><rect x="'+lx+'" y="'+ly+'" width="'+lw+'" height="'+lh+'" rx="8" fill="#FFFFFF" stroke="#0F172A" stroke-width="2"/><text x="'+(lx+12)+'" y="'+(ly+22)+'" font-size="15" font-weight="700" fill="#0F172A">Leyenda</text>'+
+      filas.map(function(r, i){ var y = ly+42+i*20, t = r.riesgo.length>34 ? r.riesgo.slice(0,33)+'…' : r.riesgo;
+        return '<circle cx="'+(lx+20)+'" cy="'+(y-4)+'" r="8" fill="'+(COL_MAPA[r.color]||'#999')+'"/><text x="'+(lx+20)+'" y="'+y+'" text-anchor="middle" font-size="10" font-weight="700" fill="'+(r.color==='amarillo'?'#000':'#fff')+'">'+numeroDe(r.k)+'</text>'+
+          '<text x="'+(lx+34)+'" y="'+y+'" font-size="12.5" fill="#0F172A">'+escX(t)+' · '+escX(r.nivel)+'</text>'; }).join('')+
+      (inc.length>8?'<text x="'+(lx+12)+'" y="'+(ly+lh-8)+'" font-size="11.5" fill="#475569">Leyenda completa en la hoja 2.</text>':'')+'</g>';
+  }
+  (M.simbolos||[]).forEach(function(sm, i){
+    var r = riesgoMapa(sm.k); if (!r) return; var n = numeroDe(sm.k); if (n<1) return;
+    var cx = sm.zona==='T' ? sm._x : AX(sm.x), cy = sm.zona==='T' ? sm._y : AY(sm.y);
+    if (!sm.zona && exportar) return;
+    var sel = !exportar && MAPA_SEL && MAPA_SEL.t==='s' && MAPA_SEL.i===i;
+    s += '<g data-sym="'+i+'"'+(!sm.zona&&!exportar?' opacity=".75"':'')+'>'+(sel?'<circle cx="'+cx+'" cy="'+cy+'" r="36" fill="none" stroke="#1E3A8A" stroke-width="3" stroke-dasharray="6 4"/>':'')+simboloSvg(r, n, cx, cy, 56)+'</g>';
+  });
+  var sinU = (M.simbolos||[]).filter(function(x){ return !x.zona; }).length;
+  if (sinU && !exportar) s += '<text x="'+(MW/2)+'" y="'+(MH-14)+'" text-anchor="middle" font-size="15" font-weight="700" fill="#B91C1C">'+sinU+' símbolo(s) sin ubicar: arrástralos a su zona</text>';
+  return s + '</svg>';
+}
+/* Ubicación automática: cada riesgo va a la zona cuyo nombre coincide con su lugar, proceso o puesto. */
+function ubicarAuto(soloNuevos){
+  var M = MAPA, zonas = M.zonas||[], inc = M.incluidos||[];
+  var viejos = M.simbolos||[], nuevos = [];
+  (M.riesgos||[]).forEach(function(r){
+    if (inc.indexOf(r.k)<0) return;
+    var prev = viejos.filter(function(s){ return s.k===r.k && s.manual; });
+    if (prev.length && soloNuevos!==false){ prev.forEach(function(p){ nuevos.push(p); }); return; }
+    if (r.transversal || r.siempre){ nuevos.push({k:r.k, zona:'T', x:0, y:0}); return; }
+    var claves = r.lugares.concat(r.procesos, r.puestos), hits = [];
+    zonas.forEach(function(z){ var wz = nMapa(z.nombre), sc = 0; claves.forEach(function(c){ nMapa(c).forEach(function(w){ if (wz.indexOf(w)>=0) sc++; }); }); if (sc) hits.push({z:z, sc:sc}); });
+    hits.sort(function(a,b){ return b.sc-a.sc; });
+    var top = hits.length ? hits.filter(function(h){ return h.sc===hits[0].sc || r.lugares.length>1; }).slice(0, 4) : [];
+    if (!top.length && zonas.length===1) top = [{z:zonas[0]}];
+    if (!top.length) nuevos.push({k:r.k, zona:'', x:0.1+Math.random()*0.15, y:0.88});
+    top.forEach(function(h){ nuevos.push({k:r.k, zona:h.z.id, x:0, y:0, auto:true}); });
+  });
+  // posiciones en grilla dentro de cada zona
+  var cuenta = {};
+  nuevos.forEach(function(s){
+    if (s.manual || s.zona==='T' || !s.zona) return;
+    var z = zonas.filter(function(q){ return q.id===s.zona; })[0]; if (!z) return;
+    var A = areaMapa(), i = cuenta[z.id] = (cuenta[z.id]||0)+1, cols = Math.max(1, Math.floor((z.w*A.w-20)/66));
+    s.x = Math.min(z.x+z.w-30/A.w, z.x + (40 + ((i-1)%cols)*66)/A.w); s.y = Math.min(z.y+z.h-30/A.h, z.y + (70 + Math.floor((i-1)/cols)*66)/A.h);
+  });
+  M.simbolos = nuevos; mapaLocal();
+}
+function zonasDesdeMatriz(){
+  var lug = []; (MAPA.riesgos||[]).forEach(function(r){ r.lugares.forEach(function(l){ if (lug.indexOf(l)<0) lug.push(l); }); });
+  if (!lug.length) (MAPA.riesgos||[]).forEach(function(r){ r.procesos.forEach(function(l){ if (lug.indexOf(l)<0) lug.push(l); }); });
+  lug = lug.slice(0, 12); if (!lug.length) lug = ['Zona 1'];
+  var n = lug.length, cols = n<=2 ? n : n<=4 ? 2 : 3, filas = Math.ceil(n/cols), top0 = 0, left0 = 0, ancho = 1, alto = 1;
+  return lug.map(function(l, i){ var c = i%cols, f = Math.floor(i/cols);
+    return {id:'z'+Date.now().toString(36)+i, nombre:l, x:left0 + c*ancho/cols + 0.006, y:top0 + f*alto/filas*1.0 + 0.006 + (f? 0 : 0), w:ancho/cols-0.012, h:alto/filas-0.012}; });
+}
+function mapaLocal(){ try{ localStorage.setItem('mapa:'+idC(cfg.centro)+':'+(MAPA.id||'nuevo'), JSON.stringify(Object.assign({}, MAPA, {fondo: MAPA.fondo && MAPA.fondo.length<1500000 ? MAPA.fondo : ''}))); }catch(e){} MAPA._sucio = true; }
+
+/* ---------- Pantallas ---------- */
+function renderMapa(){
+  if (!cfg.centro) return [sinCentro(),''];
+  if (MAPA) return renderMapaEditor();
+  if (!online()) return [sinConexionMsg(),''];
+  var L = datos.mapas, h = '<div class="cab"><div><h2>Mapa de riesgos</h2><div class="muted">Croquis del lugar con los riesgos de la matriz (art. 62 D.S. N° 44). Se exhibe en un lugar visible y se actualiza cuando cambia la matriz.</div></div></div>';
+  if (!L) return [h+cargando(),''];
+  var bar = puede('evaluador') ? '<button class="btn" data-g="mapnuevo">'+ico('mas')+'Nuevo mapa</button>' : '';
+  if (!L.length) return [h+'<div class="empty">Aún no hay mapas. Puedes dibujar las zonas en la app, usar un plano o foto, o fotografiar un croquis hecho a mano para que la IA lo digitalice.</div>', bar];
+  h += '<div class="filas">'+L.map(function(x){
+    var b = x.estado==='vigente' ? bdg('ok sm','Vigente v'+x.version) : x.estado==='desactualizado' ? bdg('crit sm','Actualizar: cambió la matriz') : bdg('neu sm','Borrador');
+    return '<div class="fila" data-g="mapabrir:'+x.id+'"><span class="nv"></span><span class="tx"><b>'+esc(x.nombre)+'</b><span class="m">'+(x.exhibicion?'Exhibido en: '+esc(x.exhibicion):'Ubicación por registrar')+' · '+x.simbolos+' símbolo(s)</span><span class="e">'+b+
+      (x.pdf?'<a class="chip" href="'+esc(x.pdf)+'" target="_blank" rel="noopener">PDF</a>':'')+'</span></span><span class="chev" style="margin-right:12px">'+ico('chev')+'</span></div>'; }).join('')+'</div>';
+  return [h, bar];
+}
+function mapaNuevo(){
+  abrirSheet(cabecera('¿Cómo armamos el croquis?')+'<p class="muted" style="margin-top:0">El croquis no necesita escala exacta, pero debe mostrar con claridad las zonas del lugar. Después la app ubica los riesgos de la matriz.</p><div class="list menu-acc">'+
+    '<button class="li" data-g="mapcroq:mano">'+ico('foto')+'<span class="tx"><b>Fotografiar un croquis hecho a mano</b><span>Dibújalo en una hoja con el nombre de cada zona. La IA lo convierte en un croquis limpio que puedes ajustar.</span></span></button>'+
+    '<button class="li" data-g="mapcroq:plano">'+ico('docs')+'<span class="tx"><b>Usar un plano o foto existente</b><span>Queda de fondo y sobre él se marcan las zonas y los riesgos.</span></span></button>'+
+    '<button class="li" data-g="mapcroq:app">'+ico('matriz')+'<span class="tx"><b>Dibujar las zonas en la app</b><span>Parte con una zona por cada lugar de la matriz; las mueves y cambias de tamaño con el dedo.</span></span></button></div>');
+}
+function mapaIniciar(modo){
+  cerrarSheet(); busy(true,'Leyendo los riesgos de la matriz…');
+  run('riesgosParaMapa', cfg.centro).then(function(R){
+    busy(false);
+    if (R.length<=1) return toast('La matriz aún no tiene riesgos evaluados.');
+    MAPA = {id:null, nombre:nomC(cfg.centro), zonas:[], elementos:[], simbolos:[], riesgos:R, exhibicion:'', firmas:{rol2:'Comité Paritario de Higiene y Seguridad'},
+      incluidos: R.filter(function(r){ return r.siempre || r.color==='rojo' || r.color==='anaranjado'; }).map(function(r){ return r.k; })};
+    if (MAPA.incluidos.length<=1) MAPA.incluidos = R.map(function(r){ return r.k; });
+    if (modo==='app'){ MAPA.zonas = zonasDesdeMatriz(); ubicarAuto(false); MAPA_MODO = 'zonas'; render(); return toast('Zonas creadas desde la matriz: ajústalas al lugar real.'); }
+    var inp = $('fotoMapa'); inp.dataset.modo = modo; inp.value = ''; inp.click(); render();
+  }).catch(function(e){ busy(false); toast(e.message); });
+}
+function mapaAbrir(id){
+  busy(true,'Abriendo el mapa…');
+  run('obtenerMapa', id).then(function(m){ busy(false); MAPA = m; MAPA.verFondo = m.verFondo!==false; MAPA._sucio = false; MAPA_SEL = null; MAPA_MODO = 'riesgos'; render(); })
+    .catch(function(e){ busy(false); toast(e.message); });
+}
+function renderMapaEditor(){
+  var M = MAPA, ed = puede('evaluador'), R = M.riesgos||[];
+  var h = '<div class="cab"><div><h2>'+esc(M.nombre||'Mapa de riesgos')+'</h2><div class="muted">'+(M.id?(M.estado==='desactualizado'?'<b style="color:var(--int)">La matriz cambió: revisa y vuelve a emitir.</b>':M.version?'Versión '+M.version:'Borrador'):'Sin guardar')+'</div></div></div>';
+  h += lab('Nombre del mapa (área o lugar)')+'<input type="text" data-mp="nombre" value="'+esc(M.nombre||'')+'">';
+  h += '<div class="toggle" style="margin:12px 0 8px"><button data-g="mapmodo:riesgos" class="'+(MAPA_MODO==='riesgos'?'on':'')+'">Mover riesgos</button><button data-g="mapmodo:zonas" class="'+(MAPA_MODO==='zonas'?'on':'')+'">Editar zonas</button></div>';
+  h += '<div class="pista">'+(MAPA_MODO==='zonas'?'Arrastra una zona para moverla y su esquina azul para cambiar el tamaño. Tócala para cambiar el nombre o eliminarla.':'Arrastra cada símbolo a su lugar. Tócalo para ver el riesgo o quitarlo. Arriba a la izquierda van los riesgos de todo el lugar.')+'</div>';
+  h += '<div class="mapa-wrap'+(MAPA_FULL?' full':'')+'" id="mapaWrap">'+mapaSvg(false)+(MAPA_FULL?'<button class="btn mapa-cerrar" data-g="mapfull">Cerrar</button>':'')+'</div>';
+  h += '<div class="acts">'+(MAPA_MODO==='zonas'?'<button class="chip" data-g="mapzadd">'+ico('mas')+'Agregar zona</button>':'')+
+    '<button class="chip" data-g="mapfull">'+ico('ojo')+'Pantalla completa</button><button class="chip" data-g="mapauto">'+ico('rehacer')+'Ubicar riesgos automáticamente</button>'+
+    (M.fondo?'<button class="chip" data-g="mapfondo">'+(M.verFondo!==false?'Ocultar foto de fondo':'Mostrar foto de fondo')+'</button>':'')+
+    '<button class="chip" data-g="mapfoto">'+ico('foto')+(M.fondo?'Cambiar foto de fondo':'Agregar plano o foto de fondo')+'</button></div>';
+  // Riesgos
+  var inc = M.incluidos||[];
+  h += '<div class="sec-t">Riesgos de la matriz ('+inc.length+' de '+R.length+' en el mapa)</div><div class="pista">Por defecto van los de nivel rojo y anaranjado y siempre el psicosocial. Puedes sumar los demás.</div><div class="filas">'+R.map(function(r){
+    var on = inc.indexOf(r.k)>=0, zs = (M.simbolos||[]).filter(function(s){ return s.k===r.k; }).map(function(s){ if (s.zona==='T') return 'Todo el lugar'; var z = (M.zonas||[]).filter(function(q){ return q.id===s.zona; })[0]; return z ? z.nombre : 'Sin ubicar'; });
+    return '<label class="fila" style="cursor:pointer"><input type="checkbox" class="mpInc" value="'+r.k+'"'+(on?' checked':'')+(r.siempre?' disabled':'')+'><span class="tx"><b>'+(on?numeroDe(r.k)+'. ':'')+esc(r.riesgo)+'</b><span class="m">'+
+      '<span class="mpt" style="background:'+(COL_MAPA[r.color]||'#999')+'"></span> '+esc(r.nivel)+(r.siempre?' · siempre se incluye':'')+(on&&zs.length?' · '+esc(unicosTxt(zs).join(', ')):'')+'</span></span></label>'; }).join('')+'</div>';
+  h += '<div class="sec-t">Exhibición y participación</div>'+lab('Dónde se exhibirá')+'<div class="pista">Un sitio visible del lugar de trabajo. Esta ubicación queda registrada en el programa de trabajo preventivo.</div><input type="text" data-mp="exhibicion" value="'+esc(M.exhibicion||'')+'" placeholder="Ej.: diario mural del comedor y acceso a bodega">'+
+    lab('Participa y firma')+'<select data-mp="firmas.rol2">'+['Comité Paritario de Higiene y Seguridad','Delegado/a de Seguridad y Salud en el Trabajo','Jefe/a del Departamento de Prevención de Riesgos','Representante de las personas trabajadoras'].map(function(o){ return '<option'+(((M.firmas||{}).rol2||'')===o?' selected':'')+'>'+o+'</option>'; }).join('')+'</select>'+
+    '<div class="grid2"><div>'+lab('Nombre')+'<input type="text" data-mp="firmas.nombre2" value="'+esc((M.firmas||{}).nombre2||'')+'" placeholder="En blanco: se firma a mano"></div><div>'+lab('Cargo')+'<input type="text" data-mp="firmas.cargo2" value="'+esc((M.firmas||{}).cargo2||'')+'" placeholder="Cargo"></div></div>'+
+    (M.pdf?'<div class="acts"><a class="chip" href="'+esc(M.pdf)+'" target="_blank" rel="noopener">'+ico('descargar')+'PDF v'+M.version+'</a>'+(M.word?'<a class="chip" href="'+esc(M.word)+'" target="_blank" rel="noopener">Word</a>':'')+'</div>':'')+
+    (ed?'<button class="btn" style="margin-top:12px" data-g="mapemitir">'+ico('emitir')+'Emitir mapa (PDF para imprimir y Word)</button>':'')+
+    (puede('validador')&&M.id?'<button class="btn ghost" style="width:100%;margin-top:8px;color:var(--int)" data-g="mapdel">'+ico('borrar')+'Eliminar mapa</button>':'');
+  var bar = '<button class="btn sec" style="flex:0 0 34%" data-g="mapsalir">Salir</button><button class="btn" data-g="mapguardar">'+(M._sucio||!M.id?'Guardar avance':'Guardado ✓')+'</button>';
+  return [h, bar];
+}
+function mapaGuardar(silencio){
+  var M = MAPA, cuerpo = {id:M.id, nombre:M.nombre, zonas:M.zonas, elementos:M.elementos, simbolos:(M.simbolos||[]).map(function(s){ return {k:s.k, zona:s.zona, x:+(+s.x).toFixed(4), y:+(+s.y).toFixed(4), manual:!!s.manual}; }),
+    incluidos:M.incluidos, exhibicion:M.exhibicion, firmas:M.firmas};
+  if (M.fondoNuevo) cuerpo.fondo = M.fondoNuevo; if (M.quitarFondo) cuerpo.quitarFondo = true;
+  if (!silencio) busy(true,'Guardando el mapa…');
+  return run('guardarMapa', cfg.centro, cuerpo).then(function(r){
+    var nuevo = !M.id; try{ localStorage.removeItem('mapa:'+idC(cfg.centro)+':'+(M.id||'nuevo')); }catch(e){}
+    var verF = M.verFondo; MAPA = r; MAPA.verFondo = verF; MAPA._sucio = false; datos.mapas = null; datos.cumpl = null;
+    if (!silencio){ busy(false); toast('Mapa guardado.'); render(true); }
+    return r;
+  }).catch(function(e){ if (!silencio) busy(false); toast(e.message); throw e; });
+}
+function mapaPng(){
+  return new Promise(function(ok, ko){
+    var svg = mapaSvg(true), img = new Image();
+    img.onload = function(){ try{ var c = document.createElement('canvas'); c.width = MW*2; c.height = MH*2; var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0,0,c.width,c.height); g.drawImage(img, 0, 0, c.width, c.height); ok(c.toDataURL('image/png').split(',')[1]); }catch(e){ ko(e); } };
+    img.onerror = function(){ ko(new Error('No se pudo preparar la imagen del mapa.')); };
+    img.src = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  });
+}
+function mapaEmitir(){
+  var M = MAPA, sinU = (M.simbolos||[]).filter(function(s){ return !s.zona; }).length;
+  if (!(M.zonas||[]).length && !M.fondo) return toast('Primero arma el croquis.');
+  if (sinU) return toast('Hay '+sinU+' símbolo(s) sin ubicar: arrástralos a su zona.');
+  if (!String(M.exhibicion||'').trim()) return toast('Indica dónde se exhibirá el mapa.');
+  busy(true,'Preparando el mapa…','Se genera el PDF horizontal para imprimir');
+  var png;
+  mapaPng().then(function(p){ png = p; return mapaGuardar(true); }).then(function(){
+    return run('emitirMapa', MAPA.id, {png:png});
+  }).then(function(r){ busy(false); var verF = MAPA.verFondo; MAPA = r.mapa; MAPA.verFondo = verF; MAPA._sucio = false; datos.mapas = null; datos.cumpl = null; datos.docs = null; render(true);
+    mostrarDocs('Mapa v'+r.version+' listo', r, '<div class="note bien" style="margin-bottom:12px">Imprímelo (idealmente en tamaño oficio o A3) y exhíbelo en: '+esc(MAPA.exhibicion)+'. La hoja 2 trae la leyenda completa y la descripción en texto.</div>');
+  }).catch(function(e){ busy(false); toast(e.message, 6000); });
+}
+/* ---------- Arrastrar zonas y símbolos ---------- */
+var ARR = null;
+function ptSvg(e){ var sv = $('mapaSvg'); if (!sv) return null; var p = sv.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; var m = sv.getScreenCTM(); return m ? p.matrixTransform(m.inverse()) : null; }
+function zonaEn(px, py){ var A = areaMapa(); if (py < A.y - 6 && px <= TB.x+TB.w+40) return 'T';
+  var z = (MAPA.zonas||[]).filter(function(q){ return px>=AX(q.x) && px<=AX(q.x+q.w) && py>=AY(q.y) && py<=AY(q.y+q.h); }); return z.length ? z[z.length-1].id : ''; }
+document.addEventListener('pointerdown', function(e){
+  if (!MAPA || !e.target.closest || !e.target.closest('#mapaSvg')) return;
+  var p = ptSvg(e); if (!p) return;
+  var h = e.target.closest('[data-zh]'), s = e.target.closest('[data-sym]'), z = e.target.closest('[data-zona]');
+  if (MAPA_MODO==='zonas' && h){ ARR = {t:'zh', id:h.dataset.zh, p0:p, mov:false}; }
+  else if (MAPA_MODO==='zonas' && z){ var zz = MAPA.zonas.filter(function(q){ return q.id===z.dataset.zona; })[0]; ARR = {t:'z', id:zz.id, p0:p, x0:zz.x, y0:zz.y, mov:false,
+      sims:(MAPA.simbolos||[]).filter(function(q){ return q.zona===zz.id; }).map(function(q){ return [q, q.x, q.y]; })}; }
+  else if (MAPA_MODO==='riesgos' && s){ var sm = MAPA.simbolos[+s.dataset.sym]; var A0 = areaMapa(); ARR = {t:'s', i:+s.dataset.sym, p0:p, x0:sm.zona==='T'?((sm._x||0)-A0.x)/A0.w:sm.x, y0:sm.zona==='T'?((sm._y||0)-A0.y)/A0.h:sm.y, mov:false, A:A0}; }
+  else return;
+  e.preventDefault(); try{ $('mapaSvg').setPointerCapture(e.pointerId); }catch(er){}
+});
+document.addEventListener('pointermove', function(e){
+  if (!ARR) return; var p = ptSvg(e); if (!p) return;
+  var A = ARR.A || areaMapa(); ARR.A = A; var dx = (p.x-ARR.p0.x)/A.w, dy = (p.y-ARR.p0.y)/A.h; if (Math.abs(p.x-ARR.p0.x)+Math.abs(p.y-ARR.p0.y) > 6) ARR.mov = true; if (!ARR.mov) return;
+  if (ARR.t==='z'){ var z = MAPA.zonas.filter(function(q){ return q.id===ARR.id; })[0]; z.x = Math.max(0, Math.min(1-z.w, ARR.x0+dx)); z.y = Math.max(0, Math.min(1-z.h, ARR.y0+dy));
+    ARR.sims.forEach(function(a){ a[0].x = a[1] + (z.x-ARR.x0); a[0].y = a[2] + (z.y-ARR.y0); }); }
+  else if (ARR.t==='zh'){ var z2 = MAPA.zonas.filter(function(q){ return q.id===ARR.id; })[0]; z2.w = Math.max(0.06, Math.min(1-z2.x, (p.x-A.x)/A.w - z2.x)); z2.h = Math.max(0.06, Math.min(1-z2.y, (p.y-A.y)/A.h - z2.y)); }
+  else if (ARR.t==='s'){ var sm = MAPA.simbolos[ARR.i]; sm.zona = sm.zona==='T' ? '' : sm.zona; sm.x = ARR.x0+dx; sm.y = ARR.y0+dy; }
+  var sv0 = $('mapaSvg'); if (sv0) sv0.outerHTML = mapaSvg(false);
+});
+document.addEventListener('pointerup', function(e){
+  if (!ARR) return; var A0 = ARR; ARR = null;
+  if (!A0.mov){ if (A0.t==='z') return editarZona(A0.id); if (A0.t==='s') return verSimbolo(A0.i); return; }
+  if (A0.t==='s'){ var sm = MAPA.simbolos[A0.i], A = A0.A || areaMapa(); sm.zona = zonaEn(A.x+sm.x*A.w, A.y+sm.y*A.h); sm.manual = true; if (sm.zona==='T'){ sm.x = 0; sm.y = 0; } else { sm.x = Math.max(0.02, Math.min(0.98, sm.x)); sm.y = Math.max(0.02, Math.min(0.98, sm.y)); } }
+  mapaLocal(); render(true);
+});
+function editarZona(id){
+  var z = MAPA.zonas.filter(function(q){ return q.id===id; })[0]; if (!z) return;
+  abrirSheet(cabecera('Zona')+lab('Nombre de la zona')+'<input type="text" id="mzN" value="'+esc(z.nombre)+'">'+
+    '<div style="height:12px"></div><button class="btn" id="mzOk">Guardar</button><button class="btn ghost" style="width:100%;margin-top:6px;color:var(--int)" id="mzDel">'+ico('borrar')+'Eliminar zona</button>');
+  $('mzOk').onclick = function(){ z.nombre = $('mzN').value.trim() || z.nombre; mapaLocal(); cerrarSheet(); render(true); };
+  $('mzDel').onclick = function(){ MAPA.zonas = MAPA.zonas.filter(function(q){ return q.id!==id; }); (MAPA.simbolos||[]).forEach(function(s){ if (s.zona===id) s.zona = ''; }); mapaLocal(); cerrarSheet(); render(true); };
+}
+function verSimbolo(i){
+  var s = MAPA.simbolos[i], r = riesgoMapa(s.k); if (!r) return;
+  abrirSheet(cabecera(numeroDe(r.k)+'. '+esc(r.riesgo))+'<p style="margin-top:0"><span class="mpt" style="background:'+(COL_MAPA[r.color]||'#999')+'"></span> Nivel: <b>'+esc(r.nivel)+'</b></p>'+
+    (r.puestos.length?'<p class="muted">Puestos: '+esc(r.puestos.join(', '))+'</p>':'')+(r.medida?'<p class="muted">Medida principal: '+esc(r.medida)+'</p>':'')+
+    '<button class="btn sec" id="msT">Mover a "en todo el lugar"</button><div style="height:8px"></div><button class="btn sec" id="msDup">Repetir en otra zona</button>'+
+    '<button class="btn ghost" style="width:100%;margin-top:6px;color:var(--int)" id="msDel">'+ico('borrar')+'Quitar este símbolo</button>');
+  $('msT').onclick = function(){ s.zona = 'T'; s.manual = true; mapaLocal(); cerrarSheet(); render(true); };
+  $('msDup').onclick = function(){ MAPA.simbolos.push({k:s.k, zona:'', x:Math.min(0.9, (s.x||0.3)+0.06), y:Math.min(0.9, (s.y||0.3)+0.06), manual:true}); mapaLocal(); cerrarSheet(); render(true); toast('Arrastra la copia a la otra zona.'); };
+  $('msDel').onclick = function(){ MAPA.simbolos.splice(i,1); mapaLocal(); cerrarSheet(); render(true); };
+}
+document.addEventListener('input', function(e){ var el = e.target; if (!MAPA || !el.dataset || el.dataset.mp==null) return;
+  var a = el.dataset.mp.split('.'); if (a.length===2){ MAPA[a[0]] = MAPA[a[0]]||{}; MAPA[a[0]][a[1]] = el.value; } else MAPA[a[0]] = el.value; mapaLocal(); });
+document.addEventListener('change', function(e){
+  var el = e.target;
+  if (MAPA && el.dataset && el.dataset.mp!=null && el.tagName==='SELECT'){ var a = el.dataset.mp.split('.'); MAPA[a[0]] = MAPA[a[0]]||{}; MAPA[a[0]][a[1]] = el.value; mapaLocal(); }
+  if (MAPA && el.classList && el.classList.contains('mpInc')){ var inc = MAPA.incluidos||[], i = inc.indexOf(el.value);
+    if (el.checked && i<0) inc.push(el.value); if (!el.checked && i>=0) inc.splice(i,1); MAPA.incluidos = inc;
+    MAPA.simbolos = (MAPA.simbolos||[]).filter(function(s){ return inc.indexOf(s.k)>=0; }); ubicarAuto(true); render(true); }
+  if (el.id==='fotoMapa' && el.files[0] && MAPA){
+    var modo = el.dataset.modo || 'plano';
+    procesarFoto(el.files[0], 1600).then(function(f){
+      MAPA.fondo = 'data:'+f.mime+';base64,'+f.data; MAPA.fondoNuevo = {mime:f.mime, data:f.data}; MAPA.quitarFondo = false;
+      if (modo==='mano'){
+        busy(true,'La IA está leyendo tu croquis…','Reconoce las zonas y sus nombres'); MAPA.verFondo = false;
+        return run('digitalizarCroquis', cfg.centro, {mime:f.mime, data:f.data}).then(function(r){
+          busy(false); MAPA.zonas = r.zonas.map(function(z, i){ return Object.assign({id:'z'+Date.now().toString(36)+i}, z); }); MAPA.elementos = r.elementos||[];
+          ubicarAuto(false); MAPA_MODO = 'zonas'; render(); toast('Croquis digitalizado: revisa las zonas y los nombres.', 5000);
+        }).catch(function(er){ busy(false); MAPA.verFondo = true; MAPA.zonas = zonasDesdeMatriz(); ubicarAuto(false); render(); toast(er.message+' Se dejó la foto de fondo.', 7000); });
+      }
+      if (!(MAPA.zonas||[]).length){ MAPA.zonas = zonasDesdeMatriz().map(function(z){ z.w *= 0.6; z.h *= 0.5; return z; }); ubicarAuto(false); MAPA_MODO = 'zonas'; }
+      MAPA.verFondo = true; mapaLocal(); render(); toast(modo==='plano'?'Mueve cada zona sobre su lugar en el plano.':'Foto de fondo agregada.', 5000);
+    }).catch(function(er){ busy(false); toast(er.message); });
+  }
+});
+function manejarMapa(c, a){
+  if (c==='mapnuevo') return mapaNuevo();
+  if (c==='mapcroq') return mapaIniciar(a[1]);
+  if (c==='mapabrir') return mapaAbrir(a[1]);
+  if (!MAPA) return;
+  if (c==='mapmodo'){ MAPA_MODO = a[1]; MAPA_SEL = null; return render(true); }
+  if (c==='mapzadd'){ MAPA.zonas.push({id:'z'+Date.now().toString(36), nombre:'Zona '+(MAPA.zonas.length+1), x:0.35, y:0.35, w:0.25, h:0.22}); mapaLocal(); return render(true); }
+  if (c==='mapfull'){ MAPA_FULL = !MAPA_FULL; document.body.classList.toggle('mapa-full-on', MAPA_FULL); if (MAPA_FULL) toast('Gira el teléfono para verlo más grande.'); return render(true); }
+  if (c==='mapauto'){ ubicarAuto(false); render(true); return toast('Riesgos ubicados según el lugar, proceso o puesto de la matriz.'); }
+  if (c==='mapfondo'){ MAPA.verFondo = MAPA.verFondo===false; return render(true); }
+  if (c==='mapfoto'){ var inp = $('fotoMapa'); inp.dataset.modo = 'plano'; inp.value = ''; return inp.click(); }
+  if (c==='mapguardar') return mapaGuardar(false);
+  if (c==='mapemitir') return mapaEmitir();
+  if (c==='mapsalir'){ var M0 = MAPA; MAPA = null; MAPA_FULL = false; document.body.classList.remove('mapa-full-on'); datos.mapas = null; cargar('mapas'); render(); if (M0._sucio) toast('Hay cambios sin guardar: quedan en este teléfono.'); return; }
+  if (c==='mapdel'){ var id = MAPA.id; abrirSheet(cabecera('¿Eliminar el mapa?')+'<p>Se elimina el mapa y su croquis. Los PDF ya emitidos se mantienen en Drive.</p><button class="btn" style="background:var(--int);border-color:var(--int)" id="mdOk">Eliminar</button>');
+    $('mdOk').onclick = function(){ cerrarSheet(); run('eliminarMapa', id).then(function(){ MAPA = null; datos.mapas = null; cargar('mapas'); render(); toast('Mapa eliminado.'); }).catch(function(e){ toast(e.message); }); }; return; }
+}
+
 /* ======================= v30: menú lateral por módulos ======================= */
 var MENU = [
   ['Instalación', [['resumen','inicio','Resumen y avance'], ['ficha','edificio','Ficha de la instalación']]],
   ['Riesgos', [['evaluar','evaluar','Evaluar puesto'], ['matriz','matriz','Matriz IPER']]],
-  ['Planificación', [['programa','programa','Programa de trabajo'], ['medidas','medidas','Medidas y plazos']]],
+  ['Planificación', [['programa','programa','Programa de trabajo'], ['medidas','medidas','Medidas y plazos'], ['mapa','mapa','Mapa de riesgos']]],
   ['Terreno', [['insp','inspeccion','Inspecciones'], ['obs','ojo','Observaciones de conducta']]],
   ['Accidentes', [['inv','accidente','Investigación de accidentes']]],
   ['Personas', [['personal','personas','Nómina'], ['emitir','emitir','Emitir documentos']]],
@@ -5226,7 +5572,7 @@ function irModulo(k){
   if (k==='admin'){ irA('admin'); return; }
   if (k==='ficha'){ abrirCentro(cfg.centro); return; }
   if (k==='resumen') return irA('inicio');
-  if (k==='evaluar' || k==='matriz' || k==='personal' || k==='emitir' || k==='emitidos' || k==='inv') return irA(k);
+  if (k==='evaluar' || k==='matriz' || k==='personal' || k==='emitir' || k==='emitidos' || k==='inv' || k==='mapa') return irA(k);
   subMed = {programa:'programa', medidas:'medidas', insp:'insp', obs:'obs'}[k] || 'medidas';
   irA('medidas');
 }
@@ -6033,6 +6379,19 @@ var Demo = (function(){
     revisarDocumentos: function(c, ids, mods){ return {empresa:[], personas:(ids||[]).map(function(i){ return {id:i, nombre:'', puesto:'', bloqueos:[], avisos:[]}; }), listas:(ids||[]).length}; },
     listarDocumentos: function(){ return []; },
     listarInvestigaciones: function(){ return []; },
+    listarMapas: function(){ return (DB.mapas||[]).map(function(m){ return {id:m.id, nombre:m.nombre, version:0, estado:'borrador', exhibicion:m.exhibicion||'', simbolos:(m.simbolos||[]).length}; }); },
+    riesgosParaMapa: function(c){ var por = {}; DB.tareas.filter(centro(c)).forEach(function(t){ (t.d.riesgos||[]).forEach(function(r){ if (r.fam==='PSI') return; var k = r.riesgo.toLowerCase(), v = r.p*r.c, x = por[k] = por[k] || {k:'r'+Object.keys(por).length, riesgo:r.riesgo, fam:r.fam||'SEG', vep:0, lugares:[], procesos:[], puestos:[], medida:''};
+      if (v>x.vep) x.vep = v; var l = t.d.lugar||t.proceso; if (l && x.lugares.indexOf(l)<0) x.lugares.push(l); if (x.puestos.indexOf(t.puesto)<0) x.puestos.push(t.puesto); }); });
+      var col = {Intolerable:'rojo', Importante:'anaranjado', Moderado:'amarillo', Tolerable:'verde'};
+      var out = Object.keys(por).map(function(k){ var x = por[k], n = nivel(x.vep); x.nivel = n; x.color = col[n]; return x; });
+      out.push({k:'psi', riesgo:'Riesgos psicosociales', fam:'PSI', nivel:'Por evaluar (CEAL-SM)', color:'gris', vep:0, lugares:[], procesos:[], puestos:[], transversal:true, siempre:true, medida:'Aplicar el cuestionario CEAL-SM.'});
+      return out.sort(function(a,b){ return b.vep-a.vep; }); },
+    digitalizarCroquis: function(){ return {zonas:[{nombre:'Zona de trabajo',x:0.3,y:0.05,w:0.4,h:0.5},{nombre:'Bodega',x:0.72,y:0.05,w:0.25,h:0.4}], elementos:[{tipo:'puerta',nombre:'Acceso',x:0.5,y:0.6}]}; },
+    guardarMapa: function(c, d){ DB.mapas = DB.mapas || []; var m = d.id ? DB.mapas.filter(function(x){ return x.id===d.id; })[0] : null; if (!m){ m = {id:String(DB.n++)}; DB.mapas.push(m); }
+      Object.keys(d).forEach(function(k){ if (k!=='fondo') m[k] = d[k]; }); if (d.fondo) m.fondo = 'data:'+d.fondo.mime+';base64,'+d.fondo.data; if (d.quitarFondo) m.fondo = ''; m.id = m.id; return this.obtenerMapa(m.id); },
+    obtenerMapa: function(id){ var m = (DB.mapas||[]).filter(function(x){ return x.id===id; })[0]; return Object.assign(JSON.parse(JSON.stringify(m)), {estado:'borrador', version:0, riesgos:this.riesgosParaMapa(cfg.centro)}); },
+    emitirMapa: function(){ throw new Error('DEMO:Emitir el mapa de riesgos en PDF'); },
+    eliminarMapa: function(id){ DB.mapas = (DB.mapas||[]).filter(function(x){ return x.id!==id; }); return {ok:true}; },
     guardarInvestigacion: function(){ throw new Error('DEMO:Guardar investigaciones de accidentes'); },
     contextoInvestigacion: function(){ return {persona:null, tareas:[], riesgos:[], pts:[], epp:[], documentos:{}, inspecciones:[], medidasPuesto:[]}; },
     orientarInvestigacion: function(){ throw new Error('DEMO:Orientación del perito IA'); },
