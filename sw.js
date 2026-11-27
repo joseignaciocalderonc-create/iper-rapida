@@ -1,6 +1,6 @@
 /* Service worker de Gestión PrevFront: guarda la app para abrirla rápido y sin conexión.
    Las llamadas al servidor (IA, Excel) nunca se guardan en caché. */
-var CACHE = 'iper-rapida-v27';
+var CACHE = 'iper-rapida-v30';
 var ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'marca-inicio.webp'];
 
 self.addEventListener('install', function (e) {
